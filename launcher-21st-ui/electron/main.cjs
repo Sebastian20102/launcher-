@@ -587,6 +587,10 @@ ipcMain.handle("path:open", async (_event, targetPath) => {
   }
   const exists = fsSync.existsSync(targetPath);
   if (!exists) return { ok: false, message: "La ruta no existe" };
+  if (/steam\.exe$/i.test(targetPath.replaceAll("\\", "/"))) {
+    await shell.openExternal("steam://open/main");
+    return { ok: true };
+  }
   const error = await shell.openPath(targetPath);
   return error ? { ok: false, message: error } : { ok: true };
 });

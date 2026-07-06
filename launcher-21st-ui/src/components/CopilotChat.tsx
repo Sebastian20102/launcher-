@@ -44,15 +44,32 @@ function normalizeText(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/([a-z])\1{2,}/g, "$1")
     .replace(/[^a-z0-9.\s-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function getOpenTarget(message: string) {
+function getOpenTarget(message: string, items: LibraryItem[]) {
   const normalized = normalizeText(message);
-  const match = normalized.match(/^(abre|abrir|abreme|ejecuta|ejecutar|lanza|lanzar|inicia|iniciar)\s+(.+)$/);
-  return match?.[2]?.trim() ?? "";
+  const hasOpenVerb = /\b(abre|abrir|abreme|ejecuta|ejecutar|lanza|lanzar|inicia|iniciar|arranca|arrancar)\b/.test(normalized);
+  if (!hasOpenVerb) return "";
+
+  const runnableItems = items.filter((item) => item.type !== "Proyecto" || /\.(exe|lnk|bat|cmd)$/i.test(item.location));
+  const namedItem = [...runnableItems]
+    .sort((a, b) => normalizeText(b.name).length - normalizeText(a.name).length)
+    .find((item) => {
+      const name = normalizeText(item.name);
+      const id = normalizeText(item.id);
+      return (name.length > 2 && normalized.includes(name)) || (id.length > 2 && normalized.includes(id));
+    });
+  if (namedItem) return namedItem.name;
+
+  const match = normalized.match(/\b(?:abre|abrir|abreme|ejecuta|ejecutar|lanza|lanzar|inicia|iniciar|arranca|arrancar)\s+(.+)$/);
+  return (match?.[1] ?? "")
+    .replace(/\b(ahora|si|porfa|porfavor|por favor|tu|dale|ya|mismo)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function findLaunchItem(items: LibraryItem[], target: string) {
@@ -113,7 +130,7 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
     setIsThinking(true);
 
     try {
-      const openTarget = getOpenTarget(text);
+      const openTarget = getOpenTarget(text, items);
       if (openTarget) {
         const launchItem = findLaunchItem(items, openTarget);
         if (!window.nexus?.openPath) {
