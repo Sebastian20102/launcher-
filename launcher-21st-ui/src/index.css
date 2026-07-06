@@ -67,9 +67,19 @@ body,
   min-height: 100%;
 }
 
+html {
+  scrollbar-width: none;
+}
+
 body {
   margin: 0;
   background: hsl(var(--background));
+  overflow: hidden;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 button,

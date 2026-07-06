@@ -494,6 +494,12 @@ function createWindow() {
     minHeight: 720,
     backgroundColor: "#141519",
     title: "Nexus Launcher",
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#101114",
+      symbolColor: "#e8dcc1",
+      height: 40,
+    },
     show: true,
     center: true,
     autoHideMenuBar: true,
