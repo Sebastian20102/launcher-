@@ -669,12 +669,12 @@ function WindowControls() {
       label: "Cerrar",
       icon: X,
       onClick: () => window.nexus?.closeWindow(),
-      className: "hover:border-red-400/40 hover:bg-red-500/85 hover:text-white",
+      className: "hover:bg-red-500/90 hover:text-white",
     },
   ];
 
   return (
-    <div className="app-no-drag ml-2 flex items-center gap-1 rounded-md border border-white/10 bg-black/25 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_30px_rgba(0,0,0,0.22)]">
+    <div className="app-no-drag ml-2 flex items-center gap-0.5 rounded-full border border-white/8 bg-white/[0.035] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_34px_rgba(0,0,0,0.2)] backdrop-blur-xl">
       {controls.map((control) => {
         const Icon = control.icon;
         return (
@@ -683,15 +683,15 @@ function WindowControls() {
               <motion.button
                 type="button"
                 aria-label={control.label}
-                whileHover={{ y: -1 }}
+                whileHover={{ y: -1, scale: 1.04 }}
                 whileTap={{ scale: 0.94 }}
                 onClick={control.onClick}
                 className={cn(
-                  "grid size-8 place-items-center rounded-sm border border-transparent text-muted-foreground transition-colors",
+                  "grid size-7 place-items-center rounded-full text-muted-foreground/80 transition-colors",
                   control.className,
                 )}
               >
-                <Icon className="size-4" />
+                <Icon className="size-3.5 stroke-[1.8]" />
               </motion.button>
             </TooltipTrigger>
             <TooltipContent>{control.label}</TooltipContent>
