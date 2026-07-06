@@ -154,10 +154,19 @@ function createUserMessage(message) {
   };
 }
 
-function createAiContext(memory, items) {
+function normalizeAiText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function createAiContext(memory, items, message = "") {
   return {
-    profileMemory: memory.facts,
-    launcherLibrary: compactLibraryContext(items),
+    profileMemory: Array.isArray(memory.facts) ? memory.facts.slice(-12) : [],
+    launcherLibrary: compactLibraryContext(items, message),
   };
 }
 
@@ -174,19 +183,30 @@ async function rememberExchange(memory, userMessage, assistantText) {
   return nextMemory;
 }
 
-function compactLibraryContext(items) {
+function compactLibraryContext(items, message = "") {
   const list = Array.isArray(items) ? items : [];
-  return list.slice(0, 120).map((item) => ({
+  const queryWords = normalizeAiText(message)
+    .split(" ")
+    .filter((word) => word.length > 2 && !["abre", "abrir", "ejecuta", "lanza", "inicia", "quiero", "puedes", "dime"].includes(word));
+
+  const scored = list.map((item, index) => {
+    const haystack = normalizeAiText(`${item.name} ${item.type} ${item.vendor} ${item.description}`);
+    const queryScore = queryWords.reduce((score, word) => score + (haystack.includes(word) ? 10 : 0), 0);
+    const favoriteScore = item.favorite ? 5 : 0;
+    const readyScore = item.status === "Listo" ? 2 : 0;
+    return { item, index, score: queryScore + favoriteScore + readyScore };
+  });
+
+  return scored
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 32)
+    .map(({ item }) => ({
     id: item.id,
     name: item.name,
     type: item.type,
     vendor: item.vendor,
     status: item.status,
     location: item.location,
-    description: item.description,
-    version: item.version,
-    size: item.size,
-    source: item.source,
   }));
 }
 
@@ -223,8 +243,8 @@ async function callOpenAi({ message, items }) {
     content: typeof message === "string" ? message.trim() : "",
     createdAt: now,
   };
-  const libraryContext = compactLibraryContext(items);
-  const recentMessages = memory.messages.map((entry) => ({
+  const libraryContext = compactLibraryContext(items, userMessage.content);
+  const recentMessages = memory.messages.slice(-8).map((entry) => ({
     role: entry.role === "assistant" ? "assistant" : "user",
     content: entry.content,
   }));
@@ -248,7 +268,7 @@ async function callOpenAi({ message, items }) {
         {
           role: "system",
           content: JSON.stringify({
-            profileMemory: memory.facts,
+            profileMemory: memory.facts.slice(-12),
             launcherLibrary: libraryContext,
           }),
         },
@@ -293,8 +313,8 @@ async function callOllama({ message, items }) {
   const model = process.env.NEXUS_OLLAMA_MODEL || settings.ollamaModel || OLLAMA_MODEL;
   const memory = await readAiMemory();
   const userMessage = createUserMessage(message);
-  const aiContext = createAiContext(memory, items);
-  const recentMessages = memory.messages.map((entry) => ({
+  const aiContext = createAiContext(memory, items, userMessage.content);
+  const recentMessages = memory.messages.slice(-8).map((entry) => ({
     role: entry.role === "assistant" ? "assistant" : "user",
     content: entry.content,
   }));
@@ -386,8 +406,8 @@ async function callLmStudio({ message, items }) {
   }
   const memory = await readAiMemory();
   const userMessage = createUserMessage(message);
-  const aiContext = createAiContext(memory, items);
-  const recentMessages = memory.messages.map((entry) => ({
+  const aiContext = createAiContext(memory, items, userMessage.content);
+  const recentMessages = memory.messages.slice(-6).map((entry) => ({
     role: entry.role === "assistant" ? "assistant" : "user",
     content: entry.content,
   }));
@@ -413,12 +433,15 @@ async function callLmStudio({ message, items }) {
 
     if (!response.ok) {
       const body = await response.text();
+      const contextError = /n_keep|n_ctx|context length|tokens to keep/i.test(body);
       return {
         ok: false,
         provider: "lmstudio",
         model,
         content:
-          `LM Studio respondio con error ${response.status}. Asegurate de cargar un modelo y presionar Start Server en Developer/Local Server. ${body.slice(0, 500)}`,
+          contextError
+            ? "LM Studio rechazo el mensaje porque el contexto era demasiado grande para el modelo cargado. Ya compacte lo que envio; si vuelve a pasar, carga el modelo con mas contexto en LM Studio o usa una pregunta mas corta."
+            : `LM Studio respondio con error ${response.status}. Asegurate de cargar un modelo y presionar Start Server en Developer/Local Server. ${body.slice(0, 500)}`,
       };
     }
 
