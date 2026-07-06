@@ -111,8 +111,37 @@ export function CopilotChat({ items, open = false, onOpenChange, mode = "dialog"
     }
   }
 
+  const heading = (
+    <>
+      <Badge className="mb-4 border-white/15 bg-white/10 text-white hover:bg-white/10">
+        {stats.games} juegos / {stats.programs} programas / {stats.projects} proyectos / {memoryCount} recuerdos
+      </Badge>
+      {mode === "page" ? (
+        <>
+          <h2 className="text-4xl font-semibold tracking-normal text-white">
+            Nexus Copilot
+          </h2>
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-neutral-300">
+            IA conversacional con contexto de tu biblioteca y memoria local. Puede hablar contigo
+            como asistente personal; no ejecuta acciones sin confirmacion.
+          </p>
+        </>
+      ) : (
+        <>
+          <DialogTitle className="text-4xl font-semibold tracking-normal text-white">
+            Nexus Copilot
+          </DialogTitle>
+          <DialogDescription className="max-w-2xl text-sm leading-6 text-neutral-300">
+            IA conversacional con contexto de tu biblioteca y memoria local. Puede hablar contigo
+            como asistente personal; no ejecuta acciones sin confirmacion.
+          </DialogDescription>
+        </>
+      )}
+    </>
+  );
+
   const chatSurface = (
-    <div className={mode === "page" ? "relative h-full min-h-0 overflow-hidden bg-black" : "relative min-h-[720px] overflow-hidden bg-black"}>
+    <div className={mode === "page" ? "relative flex h-full min-h-0 flex-col overflow-hidden bg-black" : "relative min-h-[720px] overflow-hidden bg-black"}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_18%_70%,rgba(255,255,255,0.05),transparent_22%),linear-gradient(180deg,#050505_0%,#0c0c0d_48%,#030303_100%)]" />
           <motion.div
             aria-hidden
@@ -126,20 +155,17 @@ export function CopilotChat({ items, open = false, onOpenChange, mode = "dialog"
           <div className="pointer-events-none absolute left-[28%] top-[11%] size-0.5 rounded-full bg-white/80" />
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:82px_82px] opacity-20" />
 
-          <DialogHeader className={mode === "page" ? "relative z-10 items-center px-8 pt-28 text-center" : "relative z-10 items-center px-8 pt-52 text-center"}>
-            <Badge className="mb-4 border-white/15 bg-white/10 text-white hover:bg-white/10">
-              {stats.games} juegos / {stats.programs} programas / {stats.projects} proyectos / {memoryCount} recuerdos
-            </Badge>
-            <DialogTitle className="text-4xl font-semibold tracking-normal text-white">
-              Nexus Copilot
-            </DialogTitle>
-            <DialogDescription className="max-w-2xl text-sm leading-6 text-neutral-300">
-              IA conversacional con contexto de tu biblioteca y memoria local. Puede hablar contigo
-              como asistente personal; no ejecuta acciones sin confirmacion.
-            </DialogDescription>
-          </DialogHeader>
+          {mode === "page" ? (
+            <div className="relative z-10 shrink-0 px-8 pt-24 text-center">
+              {heading}
+            </div>
+          ) : (
+            <DialogHeader className="relative z-10 items-center px-8 pt-52 text-center">
+              {heading}
+            </DialogHeader>
+          )}
 
-          <div className={mode === "page" ? "relative z-10 mx-auto grid h-[calc(100%-306px)] min-h-0 w-full max-w-5xl grid-rows-[minmax(0,1fr)_auto] px-6 pb-6 pt-8" : "relative z-10 mx-auto grid w-full max-w-3xl grid-rows-[1fr_auto] px-5 pb-6 pt-10"}>
+          <div className={mode === "page" ? "relative z-10 mx-auto grid min-h-0 w-full max-w-5xl flex-1 grid-rows-[minmax(0,1fr)_auto] px-6 pb-6 pt-8" : "relative z-10 mx-auto grid w-full max-w-3xl grid-rows-[1fr_auto] px-5 pb-6 pt-10"}>
             <ScrollArea className={mode === "page" ? "h-full rounded-2xl border border-white/10 bg-black/35 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md" : "h-[310px] rounded-2xl border border-white/10 bg-black/35 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md"}>
               <div className="space-y-4">
                 {messages.map((message) => (
