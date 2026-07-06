@@ -22,9 +22,10 @@ type ChatMessage = {
 
 type CopilotChatProps = {
   items: LibraryItem[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onSelectItem: (id: string) => void;
+  mode?: "dialog" | "page";
 };
 
 function resizeTextarea(target: HTMLTextAreaElement) {
@@ -38,7 +39,7 @@ function localPreviewResponse(items: LibraryItem[]) {
   return `Estoy en modo preview porque esta ventana no tiene el puente nativo de Electron. En el .exe puedo usar una IA real con memoria si configuras OPENAI_API_KEY o NEXUS_OPENAI_API_KEY. Tu biblioteca cargada ahora tiene ${items.length} accesos, incluyendo ${games} juegos y ${projects} proyectos.`;
 }
 
-export function CopilotChat({ items, open, onOpenChange }: CopilotChatProps) {
+export function CopilotChat({ items, open = false, onOpenChange, mode = "dialog" }: CopilotChatProps) {
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [memoryCount, setMemoryCount] = useState(0);
@@ -65,9 +66,10 @@ export function CopilotChat({ items, open, onOpenChange }: CopilotChatProps) {
   }, [messages]);
 
   useEffect(() => {
-    if (!open || !window.nexus?.loadAiMemory) return;
+    if (mode === "dialog" && !open) return;
+    if (!window.nexus?.loadAiMemory) return;
     window.nexus.loadAiMemory().then((memory) => setMemoryCount(memory.facts.length)).catch(() => {});
-  }, [open]);
+  }, [mode, open]);
 
   async function submitMessage(event?: FormEvent) {
     event?.preventDefault();
@@ -109,10 +111,8 @@ export function CopilotChat({ items, open, onOpenChange }: CopilotChatProps) {
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl overflow-hidden border-white/10 bg-black p-0 text-white shadow-[0_28px_120px_rgba(0,0,0,0.65)]">
-        <div className="relative min-h-[720px] overflow-hidden bg-black">
+  const chatSurface = (
+    <div className={mode === "page" ? "relative h-full min-h-0 overflow-hidden bg-black" : "relative min-h-[720px] overflow-hidden bg-black"}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_18%_70%,rgba(255,255,255,0.05),transparent_22%),linear-gradient(180deg,#050505_0%,#0c0c0d_48%,#030303_100%)]" />
           <motion.div
             aria-hidden
@@ -126,7 +126,7 @@ export function CopilotChat({ items, open, onOpenChange }: CopilotChatProps) {
           <div className="pointer-events-none absolute left-[28%] top-[11%] size-0.5 rounded-full bg-white/80" />
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:82px_82px] opacity-20" />
 
-          <DialogHeader className="relative z-10 items-center px-8 pt-52 text-center">
+          <DialogHeader className={mode === "page" ? "relative z-10 items-center px-8 pt-28 text-center" : "relative z-10 items-center px-8 pt-52 text-center"}>
             <Badge className="mb-4 border-white/15 bg-white/10 text-white hover:bg-white/10">
               {stats.games} juegos / {stats.programs} programas / {stats.projects} proyectos / {memoryCount} recuerdos
             </Badge>
@@ -139,8 +139,8 @@ export function CopilotChat({ items, open, onOpenChange }: CopilotChatProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="relative z-10 mx-auto grid w-full max-w-3xl grid-rows-[1fr_auto] px-5 pb-6 pt-10">
-            <ScrollArea className="h-[310px] rounded-2xl border border-white/10 bg-black/35 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
+          <div className={mode === "page" ? "relative z-10 mx-auto grid h-[calc(100%-306px)] min-h-0 w-full max-w-5xl grid-rows-[minmax(0,1fr)_auto] px-6 pb-6 pt-8" : "relative z-10 mx-auto grid w-full max-w-3xl grid-rows-[1fr_auto] px-5 pb-6 pt-10"}>
+            <ScrollArea className={mode === "page" ? "h-full rounded-2xl border border-white/10 bg-black/35 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md" : "h-[310px] rounded-2xl border border-white/10 bg-black/35 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md"}>
               <div className="space-y-4">
                 {messages.map((message) => (
                   <motion.div
@@ -223,6 +223,14 @@ export function CopilotChat({ items, open, onOpenChange }: CopilotChatProps) {
             </div>
           </div>
         </div>
+  );
+
+  if (mode === "page") return chatSurface;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl overflow-hidden border-white/10 bg-black p-0 text-white shadow-[0_28px_120px_rgba(0,0,0,0.65)]">
+        {chatSurface}
       </DialogContent>
     </Dialog>
   );

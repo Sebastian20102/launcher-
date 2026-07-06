@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AppWindow,
+  ArrowLeft,
   Bell,
   CheckCircle2,
   ChevronRight,
@@ -87,8 +88,7 @@ function App() {
   const [manualPath, setManualPath] = useState("");
   const [notice, setNotice] = useState("Listo para lanzar");
   const [actionStatus, setActionStatus] = useState<ActionStatus>("idle");
-  const [screen, setScreen] = useState<"library" | "motion">("library");
-  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [screen, setScreen] = useState<"library" | "motion" | "copilot">("library");
 
   useEffect(() => {
     loadNativeLibrary(seedLibrary)
@@ -234,17 +234,49 @@ function App() {
     );
   }
 
+  if (screen === "copilot") {
+    return (
+      <TooltipProvider>
+        <main className="relative h-screen overflow-hidden bg-background text-foreground">
+          <header className={cn("relative z-10 flex h-[72px] items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
+            <div className="flex items-center gap-4">
+              <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
+                <Sparkles className="size-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                  Nexus launcher
+                </p>
+                <h1 className="text-xl font-semibold tracking-normal">
+                  Nexus Copilot
+                </h1>
+              </div>
+            </div>
+            <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
+              <Button variant="secondary" onClick={() => setScreen("library")}>
+                <ArrowLeft className="mr-2 size-4" />
+                Biblioteca
+              </Button>
+              <WindowControls />
+            </div>
+          </header>
+          <section className="relative z-10 h-[calc(100vh-72px)] min-h-0">
+            <CopilotChat
+              items={items}
+              mode="page"
+              onSelectItem={setSelectedId}
+            />
+          </section>
+        </main>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider>
       <main className="relative h-screen overflow-hidden bg-background text-foreground">
         <OdysseyBackdrop intensity={actionStatus === "idle" ? "calm" : "active"} />
         <div className="relative z-10 grid h-screen grid-rows-[72px_minmax(0,1fr)_84px] overflow-hidden">
-          <CopilotChat
-            items={items}
-            open={copilotOpen}
-            onOpenChange={setCopilotOpen}
-            onSelectItem={setSelectedId}
-          />
           <header className={cn("flex items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
             <div className="flex items-center gap-4">
               <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
@@ -495,7 +527,7 @@ function App() {
             <AnimatedDock
               items={items}
               onSelect={setSelectedId}
-              onOpenCopilot={() => setCopilotOpen(true)}
+              onOpenCopilot={() => setScreen("copilot")}
               selectedId={selected?.id ?? ""}
             />
             <div className="flex items-center gap-2">
