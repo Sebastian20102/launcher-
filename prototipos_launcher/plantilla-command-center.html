@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nexus Command - Launcher</title>
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body data-template="command">
+  <aside class="sidebar compact launcher-sidebar">
+    <div class="brand">
+      <span class="mark blue">NX</span>
+      <div>
+        <strong>Nexus PC</strong>
+        <small>Launcher unificado</small>
+      </div>
+    </div>
+    <button class="nav active" data-filter="all">Inicio</button>
+    <button class="nav" data-filter="favorite">Favoritos</button>
+    <button class="nav" data-filter="Juegos">Juegos</button>
+    <button class="nav" data-filter="Programas">Apps</button>
+    <button class="nav" data-filter="Herramientas">Tools</button>
+    <div class="platforms">
+      <span>Conectados</span>
+      <button data-platform-filter="Steam">Steam</button>
+      <button data-platform-filter="GOG">GOG</button>
+      <button data-platform-filter="Battle.net">Battle.net</button>
+      <button data-platform-filter="Xbox">Xbox</button>
+    </div>
+    <div class="sidebar-footer">
+      <button class="ghost" data-accent>Cambiar acento</button>
+      <a class="back" href="index.html">Volver</a>
+    </div>
+  </aside>
+  <main class="shell command-shell">
+    <header class="topbar">
+      <div>
+        <h1>Nexus Command</h1>
+        <p>Playnite para organizar, Big Picture para jugar, GOG para unificar, Battle.net para actividad.</p>
+      </div>
+      <div class="search">
+        <input id="search" type="search" placeholder="Buscar juego, plataforma o estado">
+      </div>
+    </header>
+    <section class="console-hero">
+      <img src="https://images.unsplash.com/photo-1600861195091-690c92f1d2cc?auto=format&fit=crop&w=1500&q=80" alt="Setup gamer con controles y pantalla">
+      <div class="console-copy">
+        <span>Modo sofa</span>
+        <h2>Seguir jugando</h2>
+        <p>Interfaz grande, clara y preparada para control. Inspirada en Big Picture, pero con biblioteca unificada.</p>
+        <div class="hero-actions">
+          <button class="primary" data-open-featured>Abrir destacado</button>
+          <button class="secondary" data-random>Juego aleatorio</button>
+        </div>
+      </div>
+      <div class="controller-hints">
+        <span>A Seleccionar</span>
+        <span>B Volver</span>
+        <span>Y Filtro</span>
+      </div>
+    </section>
+    <section class="stats-row">
+      <button class="stat" data-filter-shortcut="favorite"><strong>5</strong><span>Favoritos estilo Playnite</span></button>
+      <button class="stat" data-platform-filter="Steam"><strong>2</strong><span>Steam / Big Picture</span></button>
+      <button class="stat" data-platform-filter="GOG"><strong>2</strong><span>GOG Galaxy</span></button>
+      <button class="stat" data-platform-filter="Battle.net"><strong>2</strong><span>Battle.net</span></button>
+    </section>
+    <section class="integration-strip">
+      <article><strong>Playnite</strong><span>Biblioteca local, filtros, favoritos, metadatos.</span></article>
+      <article><strong>Steam</strong><span>Vista grande, recientes, modo mando.</span></article>
+      <article><strong>GOG Galaxy</strong><span>Plataformas conectadas en una sola coleccion.</span></article>
+      <article><strong>Battle.net</strong><span>Estado, actividad y acceso rapido a juegos vivos.</span></article>
+    </section>
+    <section class="split">
+      <div class="panel">
+        <div class="section-head tight">
+          <h2>Biblioteca unificada</h2>
+          <div class="view-actions">
+            <button class="chip active" data-sort="recent">Recientes</button>
+            <button class="chip" data-sort="name">A-Z</button>
+            <button class="chip" data-sort="platform">Plataforma</button>
+          </div>
+        </div>
+        <section id="library" class="library command-list"></section>
+      </div>
+      <div class="panel activity launcher-activity">
+        <h2>Actividad y amigos</h2>
+        <ol>
+          <li><strong>Battle.net</strong><span>Warzone listo para jugar - 2 amigos online</span></li>
+          <li><strong>Steam</strong><span>Cyberpunk actualizado - mando detectado</span></li>
+          <li><strong>GOG Galaxy</strong><span>Sincronizando biblioteca externa</span></li>
+          <li><strong>Playnite</strong><span>Metadatos locales actualizados</span></li>
+        </ol>
+      </div>
+    </section>
+  </main>
+  <dialog id="details" class="details"></dialog>
+  <div id="toast" class="toast"></div>
+  <script src="shared.js"></script>
+</body>
+</html>

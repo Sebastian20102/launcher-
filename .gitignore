@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Frontend builds
+dist/
+**/dist/
+.vite/
+
+# Desktop build outputs
+release/
+**/release/
+bin/
+obj/
+**/bin/
+**/obj/
+*.blockmap
+*.exe
+*.zip
+
+# Logs and caches
+*.log
+*.err.log
+npm-debug.log*
+vite-dev.log
+electron-*.log
+
+# Local/generated data
+launcher-21st-ui/public/library.generated.json
+launcher-21st-ui/public/app-icons/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

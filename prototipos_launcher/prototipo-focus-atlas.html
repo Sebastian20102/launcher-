@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexus Prototype 04 - Focus Atlas</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101113;
+      --ink: #f0eee8;
+      --muted: #aaa9a4;
+      --soft: #7d817f;
+      --panel: #191b1e;
+      --panel-2: #202328;
+      --panel-3: #262a30;
+      --line: #383c43;
+      --line-strong: #d5c7a7;
+      --paper: #d8d0bf;
+      --green: #a8bca9;
+      --blue: #aab7c9;
+      --rose: #c4a8a5;
+      --ochre: #c9b27c;
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+
+    .shell {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 86px 1fr 390px;
+      grid-template-rows: 76px 1fr 74px;
+      grid-template-areas:
+        "spine top top"
+        "spine atlas detail"
+        "spine dock detail";
+    }
+
+    .spine {
+      grid-area: spine;
+      border-right: 1px solid var(--line);
+      background: #141517;
+      display: grid;
+      grid-template-rows: 86px 1fr 120px;
+      align-items: center;
+      justify-items: center;
+    }
+
+    .mark {
+      width: 46px;
+      height: 46px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: var(--line-strong);
+      font-weight: 900;
+    }
+
+    .spine nav {
+      display: grid;
+      gap: 10px;
+    }
+
+    .spine button {
+      width: 46px;
+      height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: transparent;
+      color: var(--muted);
+      transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
+    }
+
+    .spine button:hover,
+    .spine button.active {
+      color: var(--ink);
+      background: var(--panel-2);
+      border-color: var(--line-strong);
+      transform: translateX(3px);
+    }
+
+    .top {
+      grid-area: top;
+      border-bottom: 1px solid var(--line);
+      background: #141517;
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) 520px auto;
+      gap: 18px;
+      align-items: center;
+      padding: 14px 22px;
+    }
+
+    .title-block span,
+    .eyebrow {
+      color: var(--line-strong);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .title-block strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 24px;
+    }
+
+    .search {
+      min-height: 46px;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #111214;
+      color: var(--ink);
+      padding: 0 14px;
+      outline: none;
+      transition: border-color .18s ease, background .18s ease;
+    }
+
+    .search:focus {
+      border-color: var(--line-strong);
+      background: #17191c;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      color: var(--ink);
+      padding: 0 14px;
+      transition: background .18s ease, border-color .18s ease, transform .12s ease;
+    }
+
+    .btn:hover { background: var(--panel-3); border-color: var(--line-strong); }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { background: var(--paper); color: #111214; border-color: var(--paper); font-weight: 800; }
+
+    .atlas {
+      grid-area: atlas;
+      position: relative;
+      overflow: hidden;
+      background: #111214;
+    }
+
+    .atlas-grid {
+      position: absolute;
+      inset: 0;
+      opacity: .5;
+      background-size: 42px 42px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='42' height='42' viewBox='0 0 42 42'%3E%3Cpath d='M0 41.5H42M41.5 0V42' stroke='%231c1f23' stroke-width='1'/%3E%3C/svg%3E");
+    }
+
+    .axis {
+      position: absolute;
+      background: var(--line);
+      transform-origin: center;
+      opacity: .75;
+    }
+
+    .axis.x { left: 40px; right: 40px; top: 50%; height: 1px; }
+    .axis.y { top: 38px; bottom: 38px; left: 50%; width: 1px; }
+
+    .cluster-label {
+      position: absolute;
+      color: var(--soft);
+      font-size: 12px;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .label-work { left: 42px; top: 36px; }
+    .label-play { right: 42px; top: 36px; }
+    .label-create { left: 42px; bottom: 36px; }
+    .label-system { right: 42px; bottom: 36px; }
+
+    .node-layer {
+      position: absolute;
+      inset: 0;
+    }
+
+    .node {
+      position: absolute;
+      width: 148px;
+      height: 96px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      color: var(--ink);
+      text-align: left;
+      padding: 12px;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      transition: transform .22s ease, background .22s ease, border-color .22s ease, box-shadow .22s ease;
+      animation: nodeIn .42s both;
+      animation-delay: calc(var(--i) * 48ms);
+    }
+
+    .node:hover,
+    .node.active {
+      background: var(--panel-2);
+      border-color: var(--tone);
+      transform: translateY(-6px) scale(1.02);
+      box-shadow: 0 18px 44px rgba(0,0,0,.26);
+    }
+
+    .node:before {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 10px;
+      height: 2px;
+      background: var(--tone);
+      transform: scaleX(.25);
+      transform-origin: left;
+      transition: transform .22s ease;
+    }
+
+    .node:hover:before,
+    .node.active:before {
+      transform: scaleX(1);
+    }
+
+    .node strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.1;
+      margin-top: 10px;
+    }
+
+    .node span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .pulse {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid var(--line-strong);
+      background: #111214;
+      left: var(--x);
+      top: var(--y);
+      transform: translate(-50%, -50%);
+      animation: pulse 1.8s infinite;
+      pointer-events: none;
+    }
+
+    .detail {
+      grid-area: detail;
+      border-left: 1px solid var(--line);
+      background: #151619;
+      display: grid;
+      grid-template-rows: 210px 1fr auto;
+      min-height: 0;
+    }
+
+    .detail-head {
+      position: relative;
+      padding: 22px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: end;
+      overflow: hidden;
+    }
+
+    .detail-head:before {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border: 1px solid var(--tone);
+      border-radius: 14px;
+      opacity: .42;
+      animation: frameBreath 2.8s ease-in-out infinite;
+    }
+
+    .detail-head h1 {
+      position: relative;
+      margin: 0;
+      font-size: 36px;
+      line-height: 1;
+    }
+
+    .detail-body {
+      min-height: 0;
+      overflow: auto;
+      padding: 20px 22px;
+    }
+
+    .metric {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      padding: 12px 0;
+      color: var(--muted);
+    }
+
+    .metric strong { color: var(--ink); text-align: right; }
+
+    .timeline {
+      margin-top: 20px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: var(--panel);
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 8px 0;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      margin-top: 4px;
+      border-radius: 50%;
+      background: var(--tone);
+    }
+
+    .detail-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 18px 22px 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    .detail-actions .primary { grid-column: 1 / -1; }
+
+    .dock {
+      grid-area: dock;
+      border-top: 1px solid var(--line);
+      background: #141517;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 18px;
+      padding: 12px 22px;
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .chip {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      padding: 0 12px;
+      transition: color .18s ease, background .18s ease, border-color .18s ease;
+    }
+
+    .chip:hover,
+    .chip.active {
+      color: #111214;
+      background: var(--paper);
+      border-color: var(--paper);
+      font-weight: 800;
+    }
+
+    .toast {
+      position: fixed;
+      right: 414px;
+      bottom: 92px;
+      background: var(--panel);
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      padding: 12px 14px;
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity .2s ease, transform .2s ease;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @keyframes nodeIn {
+      from { opacity: 0; transform: translateY(18px) scale(.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(213,199,167,.24); }
+      70% { box-shadow: 0 0 0 18px rgba(213,199,167,0); }
+      100% { box-shadow: 0 0 0 0 rgba(213,199,167,0); }
+    }
+
+    @keyframes frameBreath {
+      0%, 100% { transform: scale(1); opacity: .34; }
+      50% { transform: scale(.98); opacity: .58; }
+    }
+
+    @media (max-width: 1100px) {
+      .shell {
+        grid-template-columns: 72px 1fr;
+        grid-template-areas:
+          "spine top"
+          "spine atlas"
+          "spine dock";
+      }
+      .detail { display: none; }
+      .toast { right: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="spine">
+      <div class="mark">NX</div>
+      <nav aria-label="Modos">
+        <button class="active" data-mode="Todo" title="Todo">T</button>
+        <button data-mode="Trabajo" title="Trabajo">W</button>
+        <button data-mode="Juego" title="Juego">P</button>
+        <button data-mode="Crear" title="Crear">C</button>
+      </nav>
+      <button id="resetView" title="Recentrar">R</button>
+    </aside>
+
+    <header class="top">
+      <div class="title-block">
+        <span>Focus Atlas</span>
+        <strong>Mapa vivo de accesos</strong>
+      </div>
+      <input id="search" class="search" placeholder="Buscar acceso, carpeta, programa o proyecto" />
+      <div class="top-actions">
+        <button class="btn" id="validate">Validar</button>
+        <button class="btn primary" id="openCurrent">Abrir foco</button>
+      </div>
+    </header>
+
+    <section class="atlas" aria-label="Atlas de accesos">
+      <div class="atlas-grid"></div>
+      <div class="axis x"></div>
+      <div class="axis y"></div>
+      <span class="cluster-label label-work">Trabajo</span>
+      <span class="cluster-label label-play">Juego</span>
+      <span class="cluster-label label-create">Crear</span>
+      <span class="cluster-label label-system">Sistema</span>
+      <div class="node-layer" id="nodeLayer"></div>
+      <div class="pulse" id="pulse"></div>
+    </section>
+
+    <aside class="detail" id="detail"></aside>
+
+    <footer class="dock">
+      <div class="chips" id="chips"></div>
+      <div class="muted" id="summary"></div>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const items = [
+      { name: "Nexus WPF", group: "Trabajo", category: "Proyecto", type: "Workspace", status: "Activo", path: "C:\\Users\\Jonathan\\Documents\\New project 2\\NexusLauncherWpf", x: 26, y: 28, tone: "var(--green)" },
+      { name: "VS Code", group: "Trabajo", category: "Programacion", type: "Editor", status: "Listo", path: "Code.exe", x: 42, y: 34, tone: "var(--blue)" },
+      { name: "Terminal", group: "Trabajo", category: "Sistema", type: "Shell", status: "Listo", path: "powershell.exe", x: 32, y: 48, tone: "var(--paper)" },
+      { name: "Steam", group: "Juego", category: "Plataforma", type: "Launcher", status: "Online", path: "steam.exe", x: 70, y: 30, tone: "var(--blue)" },
+      { name: "Battle.net", group: "Juego", category: "Plataforma", type: "Launcher", status: "Online", path: "Battle.net.exe", x: 82, y: 42, tone: "var(--blue)" },
+      { name: "OBS Studio", group: "Crear", category: "Herramienta", type: "Grabacion", status: "Listo", path: "obs64.exe", x: 28, y: 72, tone: "var(--rose)" },
+      { name: "Blender", group: "Crear", category: "Diseno", type: "3D", status: "Listo", path: "blender.exe", x: 44, y: 78, tone: "var(--ochre)" },
+      { name: "Backups", group: "Sistema", category: "Carpeta", type: "Datos", status: "OK", path: "%APPDATA%\\NexusLauncher\\backups", x: 72, y: 74, tone: "var(--paper)" },
+      { name: "Validar rutas", group: "Sistema", category: "Accion", type: "Comando", status: "Pendiente", path: "validate", x: 84, y: 66, tone: "var(--green)" }
+    ];
+    const groups = ["Todo", "Trabajo", "Juego", "Crear", "Sistema"];
+    let current = items[0];
+    let activeGroup = "Todo";
+    const $ = id => document.getElementById(id);
+
+    function visibleItems() {
+      const query = $("search").value.trim().toLowerCase();
+      return items.filter(item =>
+        (activeGroup === "Todo" || item.group === activeGroup) &&
+        (!query || [item.name, item.group, item.category, item.type, item.path].join(" ").toLowerCase().includes(query))
+      );
+    }
+
+    function showToast(message) {
+      $("toast").textContent = message;
+      $("toast").classList.add("show");
+      setTimeout(() => $("toast").classList.remove("show"), 1800);
+    }
+
+    function selectItem(name) {
+      current = items.find(item => item.name === name) || current;
+      render();
+    }
+
+    function openCurrent() {
+      showToast(current.category === "Accion" ? `${current.name} ejecutado` : `Abriendo ${current.name}`);
+    }
+
+    function renderNodes() {
+      const list = visibleItems();
+      if (!list.includes(current) && list.length) current = list[0];
+      $("nodeLayer").innerHTML = list.map((item, index) => `
+        <button class="node ${item.name === current.name ? "active" : ""}"
+                data-name="${item.name}"
+                style="left:${item.x}%;top:${item.y}%;--tone:${item.tone};--i:${index}">
+          <strong>${item.name}</strong>
+          <span>${item.category} / ${item.status}</span>
+        </button>
+      `).join("");
+      $("pulse").style.setProperty("--x", `${current.x}%`);
+      $("pulse").style.setProperty("--y", `${current.y}%`);
+      document.querySelectorAll("[data-name]").forEach(node => node.onclick = () => selectItem(node.dataset.name));
+    }
+
+    function renderDetail() {
+      $("detail").style.setProperty("--tone", current.tone);
+      $("detail").innerHTML = `
+        <div class="detail-head"><h1>${current.name}</h1></div>
+        <div class="detail-body">
+          <div class="eyebrow">Foco actual</div>
+          <div class="metric"><span>Grupo</span><strong>${current.group}</strong></div>
+          <div class="metric"><span>Categoria</span><strong>${current.category}</strong></div>
+          <div class="metric"><span>Tipo</span><strong>${current.type}</strong></div>
+          <div class="metric"><span>Estado</span><strong>${current.status}</strong></div>
+          <div class="metric"><span>Ruta</span><strong>${current.path}</strong></div>
+          <section class="timeline">
+            <div class="eyebrow">Flujo</div>
+            <div class="step"><span class="dot"></span><span>Seleccionar acceso en el atlas</span></div>
+            <div class="step"><span class="dot"></span><span>Revisar estado y ruta</span></div>
+            <div class="step"><span class="dot"></span><span>Abrir, editar o validar</span></div>
+          </section>
+        </div>
+        <div class="detail-actions">
+          <button class="btn primary" onclick="openCurrent()">Abrir</button>
+          <button class="btn" onclick="showToast('Ubicacion abierta')">Ubicacion</button>
+          <button class="btn" onclick="showToast('Editor preparado')">Editar</button>
+        </div>
+      `;
+    }
+
+    function renderChips() {
+      $("chips").innerHTML = groups.map(group => `
+        <button class="chip ${group === activeGroup ? "active" : ""}" data-group="${group}">${group}</button>
+      `).join("");
+      $("summary").textContent = `${visibleItems().length} accesos / ${current.group}`;
+      document.querySelectorAll("[data-group]").forEach(chip => chip.onclick = () => {
+        activeGroup = chip.dataset.group;
+        render();
+      });
+    }
+
+    function render() {
+      renderNodes();
+      renderDetail();
+      renderChips();
+    }
+
+    $("search").addEventListener("input", render);
+    $("openCurrent").onclick = openCurrent;
+    $("validate").onclick = () => showToast("Rutas validadas");
+    $("resetView").onclick = () => { activeGroup = "Todo"; $("search").value = ""; current = items[0]; render(); };
+    document.querySelectorAll(".spine [data-mode]").forEach(button => {
+      button.onclick = () => {
+        document.querySelectorAll(".spine [data-mode]").forEach(btn => btn.classList.remove("active"));
+        button.classList.add("active");
+        activeGroup = button.dataset.mode;
+        render();
+      };
+    });
+    window.addEventListener("keydown", event => {
+      if (event.key === "Enter") openCurrent();
+      if (event.key === "/") { event.preventDefault(); $("search").focus(); }
+    });
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexus Prototype 01 - Shelf Library</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --panel: #171a20;
+      --panel-2: #1d2129;
+      --panel-3: #242935;
+      --line: #303641;
+      --text: #f4f1ea;
+      --muted: #a9adb6;
+      --soft: #7f8794;
+      --accent: #b8c7d9;
+      --accent-2: #d7c6a3;
+      --ok: #8db596;
+      --warn: #c9a66b;
+      --bad: #bd7a72;
+      --radius: 8px;
+      --shadow: 0 18px 50px rgba(0,0,0,.28);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      letter-spacing: 0;
+      overflow: hidden;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 72px 1fr;
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: 260px 1fr auto;
+      gap: 18px;
+      align-items: center;
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(18,20,25,.96);
+    }
+    .brand strong { display: block; font-size: 20px; }
+    .brand span { color: var(--muted); font-size: 12px; }
+    .search {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #111319;
+      color: var(--text);
+      padding: 0 14px;
+      outline: none;
+    }
+    .search:focus { border-color: var(--accent); background: #151821; }
+    .actions { display: flex; gap: 10px; }
+    .btn {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 0 14px;
+      transition: border-color .16s ease, background .16s ease, transform .16s ease;
+    }
+    .btn:hover { border-color: var(--accent); background: var(--panel-3); }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { background: #d8c8aa; color: #111319; border-color: #d8c8aa; font-weight: 700; }
+    .workspace {
+      display: grid;
+      grid-template-columns: 264px 1fr 360px;
+      gap: 18px;
+      min-height: 0;
+      padding: 18px 22px 22px;
+    }
+    .rail, .content, .detail {
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .rail { padding: 14px; overflow: hidden; display: flex; flex-direction: column; }
+    .eyebrow {
+      color: var(--accent-2);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin: 0 0 8px;
+    }
+    .rail-list { overflow: auto; padding-right: 4px; }
+    .rail-item {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--text);
+      padding: 6px;
+      text-align: left;
+    }
+    .rail-item:hover, .rail-item.active { background: var(--panel-2); border-color: var(--line); }
+    .mini-cover {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #303641, #111319);
+      color: var(--accent-2);
+      font-weight: 800;
+      font-size: 11px;
+    }
+    .rail-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; font-size: 13px; }
+    .rail-meta { color: var(--muted); font-size: 11px; }
+    .content { padding: 18px; overflow: auto; }
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 34px; line-height: 1.05; }
+    h2 { font-size: 20px; margin-top: 24px; }
+    .muted { color: var(--muted); }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #12151b;
+      color: var(--muted);
+      padding: 8px 12px;
+    }
+    .chip.active { color: #111319; background: var(--accent); border-color: var(--accent); font-weight: 700; }
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 16px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: linear-gradient(135deg, #252a34, #12151b 60%, #332f28);
+      min-height: 230px;
+      margin-bottom: 22px;
+    }
+    .hero-copy { align-self: end; padding: 24px; }
+    .hero-copy h2 { font-size: 42px; margin: 4px 0 8px; }
+    .hero-art {
+      margin: 18px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(216,198,163,.24), rgba(184,199,217,.1));
+      border: 1px solid rgba(255,255,255,.08);
+      display: grid;
+      place-items: center;
+      font-size: 70px;
+      font-weight: 900;
+      color: rgba(244,241,234,.16);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #14171d;
+      overflow: hidden;
+      transition: border-color .16s ease, transform .16s ease, background .16s ease;
+      text-align: left;
+      color: var(--text);
+      padding: 0;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); background: #191d25; }
+    .cover {
+      height: 112px;
+      display: grid;
+      place-items: end start;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--a), #151821 58%, var(--b));
+      font-size: 30px;
+      font-weight: 900;
+      color: rgba(255,255,255,.18);
+    }
+    .card-body { padding: 12px; }
+    .card-title { font-weight: 800; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .status { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+    .detail { overflow: hidden; display: flex; flex-direction: column; }
+    .detail-art {
+      min-height: 170px;
+      padding: 18px;
+      background: linear-gradient(135deg, var(--detail-a), #151821 58%, var(--detail-b));
+      display: flex;
+      align-items: end;
+    }
+    .detail-art h2 { font-size: 32px; line-height: 1.02; }
+    .detail-body { padding: 18px; overflow: auto; }
+    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+    .detail-row strong { color: var(--text); }
+    .detail-actions { display: grid; gap: 8px; margin-top: 18px; }
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      background: #171a20;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 12px 14px;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .2s ease, transform .2s ease;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><strong>Nexus Library</strong><span>Shelf pattern prototype</span></div>
+      <input id="search" class="search" placeholder="Buscar en biblioteca" />
+      <div class="actions">
+        <button class="btn" id="validate">Validar rutas</button>
+        <button class="btn primary" id="openFeatured">Abrir destacado</button>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="rail">
+        <p class="eyebrow">Coleccion</p>
+        <div id="railList" class="rail-list"></div>
+      </aside>
+
+      <section class="content">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Inicio</p>
+            <h1>Biblioteca personal</h1>
+            <p class="muted">Recientes, favoritos y colecciones en una sola vista.</p>
+          </div>
+          <div class="filters" id="filters"></div>
+        </div>
+        <div class="hero" id="hero"></div>
+        <h2>Favoritos</h2>
+        <div class="grid" id="favorites"></div>
+        <h2>Todos los accesos</h2>
+        <div class="grid" id="cards"></div>
+      </section>
+
+      <aside class="detail" id="detail"></aside>
+    </section>
+  </main>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const items = [
+      { name: "Steam", category: "Plataformas", type: "Launcher", status: "Online", recent: 1, favorite: true, path: "C:\\Program Files (x86)\\Steam\\steam.exe", a: "#303846", b: "#5d6470" },
+      { name: "Visual Studio Code", category: "Programacion", type: "Editor", status: "Listo", recent: 2, favorite: true, path: "C:\\Users\\Jonathan\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe", a: "#253244", b: "#58708c" },
+      { name: "NexusLauncherWpf", category: "Proyectos", type: "Carpeta", status: "Activo", recent: 3, favorite: true, path: "C:\\Users\\Jonathan\\Documents\\New project 2\\NexusLauncherWpf", a: "#34312b", b: "#8a7b5d" },
+      { name: "Blender", category: "Diseno", type: "3D", status: "Listo", recent: 4, favorite: false, path: "C:\\Program Files\\Blender Foundation\\Blender\\blender.exe", a: "#332f2f", b: "#856f60" },
+      { name: "OBS Studio", category: "Herramientas", type: "Grabacion", status: "Listo", recent: 5, favorite: false, path: "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe", a: "#2c3332", b: "#657b72" },
+      { name: "Godot", category: "Programacion", type: "Engine", status: "Listo", recent: 6, favorite: false, path: "D:\\Tools\\Godot\\Godot.exe", a: "#2b3340", b: "#6e7f94" },
+      { name: "Proyecto IA", category: "Proyectos", type: "Workspace", status: "Listo", recent: 7, favorite: false, path: "C:\\Users\\Jonathan\\Documents\\AI Lab", a: "#34333b", b: "#766e88" },
+      { name: "Battle.net", category: "Plataformas", type: "Launcher", status: "Online", recent: 8, favorite: false, path: "C:\\Program Files (x86)\\Battle.net\\Battle.net.exe", a: "#26323a", b: "#5f7482" }
+    ];
+    const filters = ["Todos", "Plataformas", "Programacion", "Proyectos", "Diseno", "Herramientas"];
+    let selected = items[0];
+    let activeFilter = "Todos";
+    const $ = (id) => document.getElementById(id);
+
+    function showToast(text) {
+      $("toast").textContent = text;
+      $("toast").classList.add("show");
+      setTimeout(() => $("toast").classList.remove("show"), 1800);
+    }
+
+    function visibleItems() {
+      const q = $("search").value.trim().toLowerCase();
+      return items.filter(item =>
+        (activeFilter === "Todos" || item.category === activeFilter) &&
+        (!q || [item.name, item.category, item.type, item.path].join(" ").toLowerCase().includes(q))
+      );
+    }
+
+    function select(item) {
+      selected = item;
+      render();
+    }
+
+    function itemButton(item, compact = false) {
+      const initials = item.name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
+      if (compact) {
+        return `<button class="rail-item ${selected.name === item.name ? "active" : ""}" data-select="${item.name}">
+          <span class="mini-cover">${initials}</span>
+          <span><span class="rail-title">${item.name}</span><span class="rail-meta">${item.category}</span></span>
+        </button>`;
+      }
+      return `<button class="card" data-select="${item.name}" style="--a:${item.a};--b:${item.b}">
+        <div class="cover">${initials}</div>
+        <div class="card-body">
+          <div class="card-title">${item.name}</div>
+          <div class="status"><span>${item.category}</span><span>${item.status}</span></div>
+        </div>
+      </button>`;
+    }
+
+    function render() {
+      const list = visibleItems();
+      if (!list.includes(selected) && list.length) selected = list[0];
+      $("filters").innerHTML = filters.map(filter => `<button class="chip ${filter === activeFilter ? "active" : ""}" data-filter="${filter}">${filter}</button>`).join("");
+      $("railList").innerHTML = list.map(item => itemButton(item, true)).join("");
+      $("cards").innerHTML = list.map(item => itemButton(item)).join("");
+      $("favorites").innerHTML = list.filter(item => item.favorite).map(item => itemButton(item)).join("") || `<p class="muted">No hay favoritos en esta coleccion.</p>`;
+      $("hero").innerHTML = `<div class="hero-copy">
+        <p class="eyebrow">Acceso destacado</p>
+        <h2>${selected.name}</h2>
+        <p class="muted">${selected.type} en ${selected.category}. Estado: ${selected.status}.</p>
+        <div style="margin-top:18px"><button class="btn primary" data-open="${selected.name}">Abrir ahora</button></div>
+      </div><div class="hero-art">${selected.name.slice(0,2).toUpperCase()}</div>`;
+      $("detail").style.setProperty("--detail-a", selected.a);
+      $("detail").style.setProperty("--detail-b", selected.b);
+      $("detail").innerHTML = `<div class="detail-art"><h2>${selected.name}</h2></div>
+        <div class="detail-body">
+          <p class="eyebrow">Pagina del acceso</p>
+          <div class="detail-row"><span>Tipo</span><strong>${selected.type}</strong></div>
+          <div class="detail-row"><span>Categoria</span><strong>${selected.category}</strong></div>
+          <div class="detail-row"><span>Estado</span><strong>${selected.status}</strong></div>
+          <div class="detail-row"><span>Ruta</span><strong style="text-align:right">${selected.path}</strong></div>
+          <div class="detail-actions">
+            <button class="btn primary" data-open="${selected.name}">Abrir</button>
+            <button class="btn" data-fav="${selected.name}">${selected.favorite ? "Quitar favorito" : "Agregar favorito"}</button>
+            <button class="btn">Editar arte y ruta</button>
+          </div>
+        </div>`;
+      document.querySelectorAll("[data-select]").forEach(btn => btn.onclick = () => select(items.find(i => i.name === btn.dataset.select)));
+      document.querySelectorAll("[data-filter]").forEach(btn => btn.onclick = () => { activeFilter = btn.dataset.filter; render(); });
+      document.querySelectorAll("[data-open]").forEach(btn => btn.onclick = () => showToast(`Abriendo ${btn.dataset.open}`));
+      document.querySelectorAll("[data-fav]").forEach(btn => btn.onclick = () => { const item = items.find(i => i.name === btn.dataset.fav); item.favorite = !item.favorite; render(); });
+    }
+    $("search").addEventListener("input", render);
+    $("validate").onclick = () => showToast("Rutas validadas");
+    $("openFeatured").onclick = () => showToast(`Abriendo ${selected.name}`);
+    render();
+  </script>
+</body>
+</html>
