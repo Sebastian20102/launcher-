@@ -33,6 +33,10 @@ async function readLibrary() {
 
 async function writeLibrary(items) {
   const file = await ensureLibraryFile();
+  const current = await readLibrary();
+  if (Array.isArray(current) && current.length > 50 && Array.isArray(items) && items.length < 20) {
+    return current;
+  }
   await fs.writeFile(file, JSON.stringify(items, null, 2), "utf8");
   return items;
 }
