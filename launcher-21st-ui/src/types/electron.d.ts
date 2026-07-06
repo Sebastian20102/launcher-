@@ -32,6 +32,9 @@ declare global {
       chatWithAi: (payload: { message: string; items: LibraryItem[] }) => Promise<AiChatResponse>;
       loadAiMemory: () => Promise<AiMemory>;
       clearAiMemory: () => Promise<AiMemory>;
+      minimizeWindow: () => Promise<void>;
+      maximizeWindow: () => Promise<void>;
+      closeWindow: () => Promise<void>;
     };
   }
 }

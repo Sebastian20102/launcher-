@@ -82,6 +82,15 @@ body {
   height: 0;
 }
 
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag,
+.app-no-drag * {
+  -webkit-app-region: no-drag;
+}
+
 button,
 input {
   font: inherit;

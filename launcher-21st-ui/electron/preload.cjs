@@ -11,4 +11,7 @@ contextBridge.exposeInMainWorld("nexus", {
   chatWithAi: (payload) => ipcRenderer.invoke("ai:chat", payload),
   loadAiMemory: () => ipcRenderer.invoke("ai:memory"),
   clearAiMemory: () => ipcRenderer.invoke("ai:clearMemory"),
+  minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
+  maximizeWindow: () => ipcRenderer.invoke("window:maximize"),
+  closeWindow: () => ipcRenderer.invoke("window:close"),
 });

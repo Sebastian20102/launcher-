@@ -494,12 +494,7 @@ function createWindow() {
     minHeight: 720,
     backgroundColor: "#141519",
     title: "Nexus Launcher",
-    titleBarStyle: "hidden",
-    titleBarOverlay: {
-      color: "#101114",
-      symbolColor: "#e8dcc1",
-      height: 40,
-    },
+    frame: false,
     show: true,
     center: true,
     autoHideMenuBar: true,
@@ -553,6 +548,23 @@ ipcMain.handle("library:save", (_event, items) => writeLibrary(items));
 ipcMain.handle("ai:memory", readAiMemory);
 ipcMain.handle("ai:chat", async (_event, payload) => callAi(payload || {}));
 ipcMain.handle("ai:clearMemory", async () => writeAiMemory({ messages: [], facts: [] }));
+
+ipcMain.handle("window:minimize", () => {
+  mainWindow?.minimize();
+});
+
+ipcMain.handle("window:maximize", () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+    return;
+  }
+  mainWindow.maximize();
+});
+
+ipcMain.handle("window:close", () => {
+  mainWindow?.close();
+});
 
 ipcMain.handle("path:validate", async (_event, targetPath) => {
   if (!targetPath || typeof targetPath !== "string") return false;

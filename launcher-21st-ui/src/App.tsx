@@ -10,6 +10,8 @@ import {
   Folder,
   HardDrive,
   Layers3,
+  Maximize2,
+  Minimize2,
   MoreHorizontal,
   Play,
   Plus,
@@ -17,6 +19,7 @@ import {
   Settings,
   Sparkles,
   Star,
+  X,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -202,7 +205,7 @@ function App() {
       <TooltipProvider>
         <main className="relative min-h-screen bg-background text-foreground">
           <OdysseyBackdrop intensity={actionStatus === "idle" ? "calm" : "active"} />
-          <header className="relative z-10 flex h-[72px] items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur">
+          <header className={cn("relative z-10 flex h-[72px] items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
             <div className="flex items-center gap-4">
               <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
                 <Sparkles className="size-5 text-primary" />
@@ -216,9 +219,12 @@ function App() {
                 </h1>
               </div>
             </div>
-            <Button variant="secondary" onClick={() => setScreen("library")}>
-              Volver a biblioteca
-            </Button>
+            <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
+              <Button variant="secondary" onClick={() => setScreen("library")}>
+                Volver a biblioteca
+              </Button>
+              <WindowControls />
+            </div>
           </header>
           <div className="relative z-10">
             <MotionLab items={items} />
@@ -239,7 +245,7 @@ function App() {
             onOpenChange={setCopilotOpen}
             onSelectItem={setSelectedId}
           />
-          <header className="flex items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur">
+          <header className={cn("flex items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
             <div className="flex items-center gap-4">
               <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
                 <Layers3 className="size-5" />
@@ -254,7 +260,7 @@ function App() {
               </div>
             </div>
 
-            <div className="hidden w-[460px] items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-muted-foreground lg:flex">
+            <div className={cn("hidden w-[460px] items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-muted-foreground lg:flex", isDesktop() && "app-no-drag")}>
               <Search className="size-4" />
               <input
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -267,7 +273,7 @@ function App() {
               </kbd>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
               <Button variant="secondary" onClick={() => setScreen("motion")}>
                 <Sparkles className="mr-2 size-4" />
                 Motion Lab
@@ -316,6 +322,7 @@ function App() {
               <Button variant="secondary" size="icon">
                 <Settings className="size-4" />
               </Button>
+              <WindowControls />
             </div>
           </header>
 
@@ -638,6 +645,59 @@ function AnimatedDock({
         </TooltipTrigger>
         <TooltipContent>Vista ventanas</TooltipContent>
       </Tooltip>
+    </div>
+  );
+}
+
+function WindowControls() {
+  if (!isDesktop()) return null;
+
+  const controls = [
+    {
+      label: "Minimizar",
+      icon: Minimize2,
+      onClick: () => window.nexus?.minimizeWindow(),
+      className: "hover:bg-white/10 hover:text-foreground",
+    },
+    {
+      label: "Maximizar",
+      icon: Maximize2,
+      onClick: () => window.nexus?.maximizeWindow(),
+      className: "hover:bg-white/10 hover:text-foreground",
+    },
+    {
+      label: "Cerrar",
+      icon: X,
+      onClick: () => window.nexus?.closeWindow(),
+      className: "hover:border-red-400/40 hover:bg-red-500/85 hover:text-white",
+    },
+  ];
+
+  return (
+    <div className="app-no-drag ml-2 flex items-center gap-1 rounded-md border border-white/10 bg-black/25 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_30px_rgba(0,0,0,0.22)]">
+      {controls.map((control) => {
+        const Icon = control.icon;
+        return (
+          <Tooltip key={control.label}>
+            <TooltipTrigger asChild>
+              <motion.button
+                type="button"
+                aria-label={control.label}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.94 }}
+                onClick={control.onClick}
+                className={cn(
+                  "grid size-8 place-items-center rounded-sm border border-transparent text-muted-foreground transition-colors",
+                  control.className,
+                )}
+              >
+                <Icon className="size-4" />
+              </motion.button>
+            </TooltipTrigger>
+            <TooltipContent>{control.label}</TooltipContent>
+          </Tooltip>
+        );
+      })}
     </div>
   );
 }
