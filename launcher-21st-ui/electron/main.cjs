@@ -466,13 +466,90 @@ async function ensureLibraryFile() {
   return file;
 }
 
+function normalizeLibraryKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function readBundledLibrary() {
+  const candidates = [
+    path.join(__dirname, "..", "dist", "library.generated.json"),
+    path.join(__dirname, "..", "public", "library.generated.json"),
+    path.join(app.getAppPath(), "dist", "library.generated.json"),
+    path.join(app.getAppPath(), "public", "library.generated.json"),
+    path.join(process.resourcesPath || "", "app", "dist", "library.generated.json"),
+    path.join(process.resourcesPath || "", "app", "public", "library.generated.json"),
+  ];
+  for (const candidate of candidates) {
+    if (!fsSync.existsSync(candidate)) continue;
+    try {
+      const raw = await fs.readFile(candidate, "utf8");
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function mergeLibraries(storedItems, bundledItems) {
+  const merged = [];
+  const indexByKey = new Map();
+
+  function addOrReplace(item, preferExisting = false) {
+    if (!item || typeof item !== "object") return;
+    const nameKey = normalizeLibraryKey(`${item.type || ""}-${item.name || item.id || ""}`);
+    const locationKey = normalizeLibraryKey(item.location || item.realPath || "");
+    const keys = [item.id, nameKey, locationKey].filter(Boolean).map(normalizeLibraryKey);
+    const existingIndex = keys.map((key) => indexByKey.get(key)).find((index) => typeof index === "number");
+    if (typeof existingIndex === "number") {
+      if (!preferExisting) merged[existingIndex] = { ...merged[existingIndex], ...item };
+      keys.forEach((key) => indexByKey.set(key, existingIndex));
+      return;
+    }
+    const nextIndex = merged.length;
+    merged.push(item);
+    keys.forEach((key) => indexByKey.set(key, nextIndex));
+  }
+
+  bundledItems.forEach((item) => addOrReplace(item, true));
+  storedItems.forEach((item) => addOrReplace(item));
+  return merged;
+}
+
+function normalizeLibraryArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (Array.isArray(entry)) return normalizeLibraryArray(entry);
+    if (Array.isArray(entry?.value)) return normalizeLibraryArray(entry.value);
+    if (entry && typeof entry === "object" && (entry.name || entry.location || entry.id)) return [entry];
+    return [];
+  });
+}
+
 async function readLibrary() {
   const file = await ensureLibraryFile();
   const raw = await fs.readFile(file, "utf8");
   try {
-    return JSON.parse(raw);
+    const stored = JSON.parse(raw);
+    const storedItems = normalizeLibraryArray(stored);
+    const bundledItems = await readBundledLibrary();
+    const merged = mergeLibraries(storedItems, bundledItems);
+    if (merged.length > storedItems.length || merged.length !== (Array.isArray(stored) ? stored.length : 0)) {
+      await fs.writeFile(file, JSON.stringify(merged, null, 2), "utf8");
+    }
+    return merged;
   } catch {
-    return [];
+    const bundledItems = await readBundledLibrary();
+    if (bundledItems.length) {
+      await fs.writeFile(file, JSON.stringify(bundledItems, null, 2), "utf8");
+    }
+    return bundledItems;
   }
 }
 
@@ -531,6 +608,9 @@ if (!singleInstanceLock) {
   });
 
   app.whenReady().then(() => {
+    readLibrary().catch((error) => {
+      console.error(`Nexus library migration failed: ${error?.message || error}`);
+    });
     createWindow();
 
     app.on("activate", () => {
