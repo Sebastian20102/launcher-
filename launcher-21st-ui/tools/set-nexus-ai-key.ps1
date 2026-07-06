@@ -29,5 +29,6 @@ $settings = [ordered]@{
   model = $Model
 }
 
-$settings | ConvertTo-Json | Set-Content -Path $settingsPath -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json), $utf8NoBom)
 Write-Output "IA configurada en $settingsPath"

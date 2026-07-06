@@ -39,7 +39,8 @@ async function readAiSettings() {
     );
   }
   try {
-    const parsed = JSON.parse(await fs.readFile(file, "utf8"));
+    const raw = (await fs.readFile(file, "utf8")).replace(/^\uFEFF/, "");
+    const parsed = JSON.parse(raw);
     return {
       apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey.trim() : "",
       model: typeof parsed.model === "string" && parsed.model.trim() ? parsed.model.trim() : OPENAI_MODEL,
