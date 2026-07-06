@@ -29,6 +29,21 @@ electron-*.log
 launcher-21st-ui/public/library.generated.json
 launcher-21st-ui/public/app-icons/
 
+# Legacy/local experiments kept on this PC but not in the production repo
+NexusLauncherWpf/
+prototipos_launcher/
+desktop_launcher.py
+pc_launcher.py
+requirements-desktop.txt
+curate_launcher_items.ps1
+import_launcher_items.ps1
+import_launcher_items_fast.ps1
+known_import_launcher.ps1
+simple_import_launcher.ps1
+iniciar_desktop_launcher.bat
+iniciar_launcher.bat
+iniciar_nexus_launcher_21st.bat
+
 # Python
 __pycache__/
 *.pyc

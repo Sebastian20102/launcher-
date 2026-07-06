@@ -1,32 +1,62 @@
-# React + TypeScript + Vite
+# Nexus Launcher UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplicacion principal de Nexus Launcher: una experiencia de escritorio para organizar, buscar y abrir juegos, programas, proyectos y herramientas locales en Windows.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React + TypeScript
+- Vite
+- Tailwind CSS
+- Radix UI primitives
+- Framer Motion
+- Electron
 
-## React Compiler
+## Desarrollo
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```powershell
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Escritorio
+
+```powershell
+npm run desktop
+```
+
+El ejecutable desempaquetado usado durante desarrollo queda en:
+
+```powershell
+release\win-unpacked\Nexus Launcher.exe
+```
+
+`release/` no se sube al repo porque es un artefacto generado.
+
+## Datos Locales
+
+La biblioteca real del usuario vive fuera del repo:
+
+```powershell
+%APPDATA%\Nexus Launcher\library.json
+```
+
+Los datos e iconos generados por importacion local tambien quedan ignorados:
+
+```powershell
+public\library.generated.json
+public\app-icons\
+```
+
+## Scripts Utiles
+
+```powershell
+npm run lint
+npm run build
+powershell -ExecutionPolicy Bypass -File .\tools\import-local-library.ps1
+powershell -ExecutionPolicy Bypass -File .\tools\enrich-library-metadata.ps1
+powershell -ExecutionPolicy Bypass -File .\tools\export-app-icons.ps1
+```
+
+## IA
+
+Nexus Copilot puede funcionar con proveedores locales como LM Studio/Ollama o con OpenAI mediante variables de entorno/local settings. Las claves reales no deben subirse al repo.

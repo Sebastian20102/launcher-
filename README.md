@@ -64,5 +64,6 @@ powershell -ExecutionPolicy Bypass -File .\tools\export-app-icons.ps1
 
 ## IA futura
 
-La app todavia no integra IA. La arquitectura queda preparada para agregarla como capa separada: indexacion local, busqueda semantica, resumen de programas/proyectos y acciones asistidas.
+La app incluye Nexus Copilot como apartado dedicado. Puede conversar con memoria local y lanzar accesos de la biblioteca usando comandos naturales como `abre Steam`.
 
+Las API keys y configuraciones privadas viven fuera del repo, en variables de entorno o en archivos locales de AppData.
