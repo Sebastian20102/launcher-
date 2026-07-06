@@ -69,6 +69,7 @@ import {
   type ActionStatus,
 } from "@/components/OdysseyFocus";
 import { AppIcon } from "@/components/AppIcon";
+import { CopilotChat } from "@/components/CopilotChat";
 import { isDesktop, loadNativeLibrary, saveNativeLibrary } from "@/lib/native";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +85,7 @@ function App() {
   const [notice, setNotice] = useState("Listo para lanzar");
   const [actionStatus, setActionStatus] = useState<ActionStatus>("idle");
   const [screen, setScreen] = useState<"library" | "motion">("library");
+  const [copilotOpen, setCopilotOpen] = useState(false);
 
   useEffect(() => {
     loadNativeLibrary(seedLibrary)
@@ -231,6 +233,12 @@ function App() {
       <main className="relative min-h-screen bg-background text-foreground">
         <OdysseyBackdrop intensity={actionStatus === "idle" ? "calm" : "active"} />
         <div className="relative z-10 grid min-h-screen grid-rows-[72px_1fr_84px]">
+          <CopilotChat
+            items={items}
+            open={copilotOpen}
+            onOpenChange={setCopilotOpen}
+            onSelectItem={setSelectedId}
+          />
           <header className="flex items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur">
             <div className="flex items-center gap-4">
               <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
@@ -477,7 +485,12 @@ function App() {
               <HardDrive className="size-4" />
               {items.length} accesos indexados
             </div>
-            <AnimatedDock items={items} onSelect={setSelectedId} selectedId={selected?.id ?? ""} />
+            <AnimatedDock
+              items={items}
+              onSelect={setSelectedId}
+              onOpenCopilot={() => setCopilotOpen(true)}
+              selectedId={selected?.id ?? ""}
+            />
             <div className="flex items-center gap-2">
               <Input
                 className="h-9 w-56"
@@ -569,10 +582,12 @@ function AnimatedDock({
   selectedId,
   items,
   onSelect,
+  onOpenCopilot,
 }: {
   selectedId: string;
   items: LibraryItem[];
   onSelect: (id: string) => void;
+  onOpenCopilot: () => void;
 }) {
   const dockItems = items.filter((item) => item.favorite).slice(0, 6);
 
@@ -603,12 +618,14 @@ function AnimatedDock({
         <TooltipTrigger asChild>
           <motion.button
             whileHover={{ y: -8, scale: 1.12 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={onOpenCopilot}
             className="grid size-11 place-items-center rounded-md border border-border bg-card"
           >
             <Sparkles className="size-5" />
           </motion.button>
         </TooltipTrigger>
-        <TooltipContent>Modo foco</TooltipContent>
+        <TooltipContent>Nexus Copilot</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
