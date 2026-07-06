@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld("nexus", {
   revealPath: (targetPath) => ipcRenderer.invoke("path:reveal", targetPath),
   pickExecutable: () => ipcRenderer.invoke("dialog:pickExecutable"),
   pickFolder: () => ipcRenderer.invoke("dialog:pickFolder"),
+  chatWithAi: (payload) => ipcRenderer.invoke("ai:chat", payload),
+  loadAiMemory: () => ipcRenderer.invoke("ai:memory"),
+  clearAiMemory: () => ipcRenderer.invoke("ai:clearMemory"),
 });
-

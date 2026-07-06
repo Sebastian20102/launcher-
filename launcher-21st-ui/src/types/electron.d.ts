@@ -5,6 +5,19 @@ export type NativeResult = {
   message?: string;
 };
 
+export type AiChatResponse = {
+  ok: boolean;
+  content: string;
+  model?: string;
+  needsKey?: boolean;
+  remembered?: number;
+};
+
+export type AiMemory = {
+  messages: Array<{ role: "user" | "assistant"; content: string; createdAt?: string }>;
+  facts: Array<{ id: string; text: string; createdAt: string }>;
+};
+
 declare global {
   interface Window {
     nexus?: {
@@ -15,6 +28,9 @@ declare global {
       revealPath: (targetPath: string) => Promise<NativeResult>;
       pickExecutable: () => Promise<string | null>;
       pickFolder: () => Promise<string | null>;
+      chatWithAi: (payload: { message: string; items: LibraryItem[] }) => Promise<AiChatResponse>;
+      loadAiMemory: () => Promise<AiMemory>;
+      clearAiMemory: () => Promise<AiMemory>;
     };
   }
 }
