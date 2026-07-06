@@ -1,26 +1,9 @@
 param(
-  [string]$ApiKey,
-  [string]$Model = "gpt-5.5",
-  [ValidateSet("openai", "ollama", "lmstudio")]
-  [string]$Provider = "openai"
+  [string]$BaseUrl = "http://127.0.0.1:1234/v1",
+  [string]$Model = "auto"
 )
 
 $ErrorActionPreference = "Stop"
-
-if (-not $ApiKey) {
-  $secure = Read-Host "Pega tu OpenAI API key" -AsSecureString
-  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-  try {
-    $ApiKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  }
-  finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-  }
-}
-
-if (-not $ApiKey -or -not $ApiKey.Trim()) {
-  throw "No se recibio ninguna API key."
-}
 
 $settingsDir = Join-Path $env:APPDATA "Nexus Launcher"
 $settingsPath = Join-Path $settingsDir "ai-settings.json"
@@ -50,16 +33,17 @@ function Get-ExistingValue {
 }
 
 $settings = [ordered]@{
-  provider = $Provider
-  apiKey = $ApiKey.Trim()
-  model = $Model
-  openAiModel = $Model
+  provider = "lmstudio"
+  apiKey = Get-ExistingValue "apiKey" ""
+  model = Get-ExistingValue "model" "gpt-5.5"
+  openAiModel = Get-ExistingValue "openAiModel" "gpt-5.5"
   ollamaModel = Get-ExistingValue "ollamaModel" "llama3.2:3b"
   ollamaBaseUrl = Get-ExistingValue "ollamaBaseUrl" "http://127.0.0.1:11434"
-  lmStudioModel = Get-ExistingValue "lmStudioModel" "auto"
-  lmStudioBaseUrl = Get-ExistingValue "lmStudioBaseUrl" "http://127.0.0.1:1234/v1"
+  lmStudioModel = $Model
+  lmStudioBaseUrl = $BaseUrl.TrimEnd("/")
 }
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json), $utf8NoBom)
-Write-Output "IA configurada en $settingsPath"
+
+Write-Output "Nexus Copilot ahora usa LM Studio: $($settings.lmStudioBaseUrl)"

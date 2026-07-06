@@ -8,6 +8,7 @@ export type NativeResult = {
 export type AiChatResponse = {
   ok: boolean;
   content: string;
+  provider?: "openai" | "ollama" | "lmstudio";
   model?: string;
   needsKey?: boolean;
   remembered?: number;

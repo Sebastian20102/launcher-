@@ -5,6 +5,10 @@ const path = require("node:path");
 
 let mainWindow;
 const OPENAI_MODEL = process.env.NEXUS_OPENAI_MODEL || process.env.OPENAI_MODEL || "gpt-5.5";
+const OLLAMA_MODEL = process.env.NEXUS_OLLAMA_MODEL || "llama3.2:3b";
+const OLLAMA_BASE_URL = process.env.NEXUS_OLLAMA_BASE_URL || "http://127.0.0.1:11434";
+const LM_STUDIO_MODEL = process.env.NEXUS_LM_STUDIO_MODEL || "auto";
+const LM_STUDIO_BASE_URL = process.env.NEXUS_LM_STUDIO_BASE_URL || "http://127.0.0.1:1234/v1";
 
 app.setPath("userData", path.join(app.getPath("appData"), "Nexus Launcher"));
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
@@ -29,8 +33,14 @@ async function readAiSettings() {
       file,
       JSON.stringify(
         {
+          provider: "lmstudio",
           apiKey: "",
           model: OPENAI_MODEL,
+          openAiModel: OPENAI_MODEL,
+          ollamaModel: OLLAMA_MODEL,
+          ollamaBaseUrl: OLLAMA_BASE_URL,
+          lmStudioModel: LM_STUDIO_MODEL,
+          lmStudioBaseUrl: LM_STUDIO_BASE_URL,
         },
         null,
         2,
@@ -42,12 +52,45 @@ async function readAiSettings() {
     const raw = (await fs.readFile(file, "utf8")).replace(/^\uFEFF/, "");
     const parsed = JSON.parse(raw);
     return {
+      provider: typeof parsed.provider === "string" ? parsed.provider.trim() : "lmstudio",
       apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey.trim() : "",
       model: typeof parsed.model === "string" && parsed.model.trim() ? parsed.model.trim() : OPENAI_MODEL,
+      openAiModel:
+        typeof parsed.openAiModel === "string" && parsed.openAiModel.trim()
+          ? parsed.openAiModel.trim()
+          : typeof parsed.model === "string" && parsed.model.trim()
+            ? parsed.model.trim()
+            : OPENAI_MODEL,
+      ollamaModel:
+        typeof parsed.ollamaModel === "string" && parsed.ollamaModel.trim()
+          ? parsed.ollamaModel.trim()
+          : OLLAMA_MODEL,
+      ollamaBaseUrl:
+        typeof parsed.ollamaBaseUrl === "string" && parsed.ollamaBaseUrl.trim()
+          ? parsed.ollamaBaseUrl.trim().replace(/\/$/, "")
+          : OLLAMA_BASE_URL,
+      lmStudioModel:
+        typeof parsed.lmStudioModel === "string" && parsed.lmStudioModel.trim()
+          ? parsed.lmStudioModel.trim()
+          : LM_STUDIO_MODEL,
+      lmStudioBaseUrl:
+        typeof parsed.lmStudioBaseUrl === "string" && parsed.lmStudioBaseUrl.trim()
+          ? parsed.lmStudioBaseUrl.trim().replace(/\/$/, "")
+          : LM_STUDIO_BASE_URL,
       path: file,
     };
   } catch {
-    return { apiKey: "", model: OPENAI_MODEL, path: file };
+    return {
+      provider: "lmstudio",
+      apiKey: "",
+      model: OPENAI_MODEL,
+      openAiModel: OPENAI_MODEL,
+      ollamaModel: OLLAMA_MODEL,
+      ollamaBaseUrl: OLLAMA_BASE_URL,
+      lmStudioModel: LM_STUDIO_MODEL,
+      lmStudioBaseUrl: LM_STUDIO_BASE_URL,
+      path: file,
+    };
   }
 }
 
@@ -99,6 +142,38 @@ function extractMemoryFacts(message) {
   ];
 }
 
+function copilotSystemPrompt() {
+  return "Eres Nexus Copilot, la IA conversacional personal dentro de un launcher de escritorio para Windows. Hablas en espanol natural, con energia de pana cuando encaje, directo y como una persona. No eres un menu de opciones. No conviertas cada respuesta en una lista si el usuario solo quiere conversar. Puedes recordar preferencias, ayudar a organizar juegos, programas y proyectos, explicar ideas, proponer automatizaciones y acompanar al usuario. No abras programas ni ejecutes acciones: si algo requiere accion real, pide confirmacion clara. Usa la biblioteca local como contexto, no inventes datos sobre apps que no aparezcan. Si no sabes algo, dilo.";
+}
+
+function createUserMessage(message) {
+  return {
+    role: "user",
+    content: typeof message === "string" ? message.trim() : "",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function createAiContext(memory, items) {
+  return {
+    profileMemory: memory.facts,
+    launcherLibrary: compactLibraryContext(items),
+  };
+}
+
+async function rememberExchange(memory, userMessage, assistantText) {
+  const nextMemory = {
+    messages: [
+      ...memory.messages,
+      userMessage,
+      { role: "assistant", content: assistantText, createdAt: new Date().toISOString() },
+    ],
+    facts: [...memory.facts, ...extractMemoryFacts(userMessage.content)],
+  };
+  await writeAiMemory(nextMemory);
+  return nextMemory;
+}
+
 function compactLibraryContext(items) {
   const list = Array.isArray(items) ? items : [];
   return list.slice(0, 120).map((item) => ({
@@ -131,7 +206,7 @@ function getOutputText(response) {
 async function callOpenAi({ message, items }) {
   const settings = await readAiSettings();
   const apiKey = process.env.OPENAI_API_KEY || process.env.NEXUS_OPENAI_API_KEY || settings.apiKey;
-  const model = process.env.NEXUS_OPENAI_MODEL || process.env.OPENAI_MODEL || settings.model || OPENAI_MODEL;
+  const model = process.env.NEXUS_OPENAI_MODEL || process.env.OPENAI_MODEL || settings.openAiModel || settings.model || OPENAI_MODEL;
   if (!apiKey) {
     return {
       ok: false,
@@ -205,10 +280,181 @@ async function callOpenAi({ message, items }) {
 
   return {
     ok: true,
+    provider: "openai",
     model,
     content: assistantText,
     remembered: nextMemory.facts.length,
   };
+}
+
+async function callOllama({ message, items }) {
+  const settings = await readAiSettings();
+  const baseUrl = settings.ollamaBaseUrl || OLLAMA_BASE_URL;
+  const model = process.env.NEXUS_OLLAMA_MODEL || settings.ollamaModel || OLLAMA_MODEL;
+  const memory = await readAiMemory();
+  const userMessage = createUserMessage(message);
+  const aiContext = createAiContext(memory, items);
+  const recentMessages = memory.messages.map((entry) => ({
+    role: entry.role === "assistant" ? "assistant" : "user",
+    content: entry.content,
+  }));
+
+  try {
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [
+          { role: "system", content: copilotSystemPrompt() },
+          { role: "system", content: JSON.stringify(aiContext) },
+          ...recentMessages,
+          { role: "user", content: userMessage.content },
+        ],
+        options: {
+          temperature: 0.72,
+          num_ctx: 8192,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      const missingModel = response.status === 404 || body.toLowerCase().includes("not found");
+      return {
+        ok: false,
+        provider: "ollama",
+        model,
+        content: missingModel
+          ? `Ollama esta instalado, pero falta el modelo local "${model}". Ejecuta: ollama pull ${model}`
+          : `Ollama respondio con error ${response.status}. ${body.slice(0, 500)}`,
+      };
+    }
+
+    const data = await response.json();
+    const assistantText = data?.message?.content?.trim() || "Estoy aqui, pero Ollama no devolvio texto util.";
+    const nextMemory = await rememberExchange(memory, userMessage, assistantText);
+    return {
+      ok: true,
+      provider: "ollama",
+      model,
+      content: assistantText,
+      remembered: nextMemory.facts.length,
+    };
+  } catch {
+    return {
+      ok: false,
+      provider: "ollama",
+      model,
+      content:
+        `No pude conectar con Ollama en ${baseUrl}. Instala y arranca la IA local con: .\\tools\\install-local-ai.ps1`,
+    };
+  }
+}
+
+async function resolveLmStudioModel(baseUrl, configuredModel) {
+  if (configuredModel && configuredModel !== "auto") return configuredModel;
+  try {
+    const response = await fetch(`${baseUrl}/models`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const models = Array.isArray(data?.data) ? data.data : [];
+    const firstChatModel = models.find((entry) => {
+      const id = String(entry?.id || "").toLowerCase();
+      return id && !id.includes("embed");
+    });
+    return firstChatModel?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function callLmStudio({ message, items }) {
+  const settings = await readAiSettings();
+  const baseUrl = settings.lmStudioBaseUrl || LM_STUDIO_BASE_URL;
+  const model = await resolveLmStudioModel(baseUrl, process.env.NEXUS_LM_STUDIO_MODEL || settings.lmStudioModel);
+  if (!model) {
+    return {
+      ok: false,
+      provider: "lmstudio",
+      content:
+        `LM Studio esta encendido en ${baseUrl}, pero no hay ningun modelo de chat cargado. Descarga/carga un modelo conversacional en LM Studio y deja el servidor prendido.`,
+    };
+  }
+  const memory = await readAiMemory();
+  const userMessage = createUserMessage(message);
+  const aiContext = createAiContext(memory, items);
+  const recentMessages = memory.messages.map((entry) => ({
+    role: entry.role === "assistant" ? "assistant" : "user",
+    content: entry.content,
+  }));
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        temperature: 0.72,
+        messages: [
+          { role: "system", content: copilotSystemPrompt() },
+          { role: "system", content: JSON.stringify(aiContext) },
+          ...recentMessages,
+          { role: "user", content: userMessage.content },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      return {
+        ok: false,
+        provider: "lmstudio",
+        model,
+        content:
+          `LM Studio respondio con error ${response.status}. Asegurate de cargar un modelo y presionar Start Server en Developer/Local Server. ${body.slice(0, 500)}`,
+      };
+    }
+
+    const data = await response.json();
+    const assistantText =
+      data?.choices?.[0]?.message?.content?.trim() || "Estoy aqui, pero LM Studio no devolvio texto util.";
+    const nextMemory = await rememberExchange(memory, userMessage, assistantText);
+    return {
+      ok: true,
+      provider: "lmstudio",
+      model,
+      content: assistantText,
+      remembered: nextMemory.facts.length,
+    };
+  } catch {
+    return {
+      ok: false,
+      provider: "lmstudio",
+      model,
+      content:
+        `No pude conectar con LM Studio en ${baseUrl}. Abre LM Studio, carga un modelo y activa Start Server en la pantalla Developer/Local Server.`,
+    };
+  }
+}
+
+async function callAi(payload) {
+  const settings = await readAiSettings();
+  if (settings.provider === "openai") {
+    const openAiResponse = await callOpenAi(payload);
+    if (openAiResponse.ok) return openAiResponse;
+    if (!/insufficient_quota|429|quota/i.test(openAiResponse.content || "")) return openAiResponse;
+  }
+  if (settings.provider === "ollama") {
+    return callOllama(payload);
+  }
+  return callLmStudio(payload);
 }
 
 async function ensureLibraryFile() {
@@ -299,7 +545,7 @@ app.on("window-all-closed", () => {
 ipcMain.handle("library:load", readLibrary);
 ipcMain.handle("library:save", (_event, items) => writeLibrary(items));
 ipcMain.handle("ai:memory", readAiMemory);
-ipcMain.handle("ai:chat", async (_event, payload) => callOpenAi(payload || {}));
+ipcMain.handle("ai:chat", async (_event, payload) => callAi(payload || {}));
 ipcMain.handle("ai:clearMemory", async () => writeAiMemory({ messages: [], facts: [] }));
 
 ipcMain.handle("path:validate", async (_event, targetPath) => {
