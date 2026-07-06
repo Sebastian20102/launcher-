@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Loader2, MessageCircle, Send, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -240,9 +240,14 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
           <div className="pointer-events-none absolute left-[80%] top-[24%] size-1 rounded-full bg-white/60" />
           <div className="pointer-events-none absolute left-[28%] top-[11%] size-0.5 rounded-full bg-white/80" />
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:82px_82px] opacity-20" />
+          {mode === "page" && (
+            <div className="relative z-10 mx-auto w-full max-w-4xl px-6 pt-8">
+              <CopilotMorphLine />
+            </div>
+          )}
 
           {mode === "page" ? (
-            <div className="relative z-10 shrink-0 px-8 pt-24 text-center">
+            <div className="relative z-10 shrink-0 px-8 pt-12 text-center">
               {heading}
             </div>
           ) : (
@@ -345,5 +350,51 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
         {chatSurface}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CopilotMorphLine() {
+  const words = ["Think", "Launch", "Remember", "Organize"];
+  const [activeWord, setActiveWord] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveWord((current) => (current + 1) % words.length);
+    }, 3400);
+    return () => window.clearInterval(timer);
+  }, [words.length]);
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
+      <svg className="absolute size-0">
+        <filter id="copilot-goo">
+          <feGaussianBlur in="SourceGraphic" result="blur" stdDeviation="5" />
+          <feColorMatrix
+            in="blur"
+            result="goo"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -7"
+          />
+          <feBlend in="SourceGraphic" in2="goo" />
+        </filter>
+      </svg>
+      <div className="flex items-center justify-center gap-3 text-sm text-neutral-300">
+        <Sparkles className="size-4 text-white" />
+        <span>Nexus Copilot can</span>
+        <span className="relative inline-grid h-7 min-w-32 place-items-center text-lg font-semibold text-white" style={{ filter: "url(#copilot-goo)" }}>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={words[activeWord]}
+              initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -10, filter: "blur(8px)" }}
+              transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute"
+            >
+              {words[activeWord]}
+            </motion.span>
+          </AnimatePresence>
+        </span>
+      </div>
+    </div>
   );
 }

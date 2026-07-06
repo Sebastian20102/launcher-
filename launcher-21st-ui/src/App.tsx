@@ -49,7 +49,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -74,6 +73,7 @@ import {
 } from "@/components/OdysseyFocus";
 import { AppIcon } from "@/components/AppIcon";
 import { CopilotChat } from "@/components/CopilotChat";
+import { UpgradeBanner } from "@/components/UpgradeBanner";
 import { isDesktop, loadNativeLibrary, saveNativeLibrary } from "@/lib/native";
 import { cn } from "@/lib/utils";
 
@@ -85,10 +85,9 @@ function App() {
   const [filter, setFilter] = useState("Todo");
   const [selectedId, setSelectedId] = useState(seedLibrary[0].id);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [manualPath, setManualPath] = useState("");
   const [notice, setNotice] = useState("Listo para lanzar");
   const [actionStatus, setActionStatus] = useState<ActionStatus>("idle");
-  const [screen, setScreen] = useState<"library" | "motion" | "copilot">("library");
+  const [screen, setScreen] = useState<"library" | "motion" | "copilot" | "identity">("library");
 
   useEffect(() => {
     loadNativeLibrary(seedLibrary)
@@ -139,17 +138,6 @@ function App() {
     const nextItems = [nextItem, ...items];
     await updateItems(nextItems, `${nextItem.name} agregado`);
     finishStatus("success", `${nextItem.name} agregado`);
-    setSelectedId(nextItem.id);
-  }
-
-  async function addManualPath() {
-    if (!manualPath.trim()) return;
-    setActionStatus("importing");
-    const nextItem = createItemFromPath(manualPath.trim(), "Programa");
-    const nextItems = [nextItem, ...items];
-    await updateItems(nextItems, `${nextItem.name} agregado manualmente`);
-    finishStatus("success", `${nextItem.name} agregado manualmente`);
-    setManualPath("");
     setSelectedId(nextItem.id);
   }
 
@@ -272,6 +260,39 @@ function App() {
     );
   }
 
+  if (screen === "identity") {
+    return (
+      <TooltipProvider>
+        <main className="relative h-screen overflow-hidden bg-background text-foreground">
+          <OdysseyBackdrop intensity="calm" />
+          <header className={cn("relative z-10 flex h-[72px] items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
+            <div className="flex items-center gap-4">
+              <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
+                <Sparkles className="size-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                  Nexus Core
+                </p>
+                <h1 className="text-xl font-semibold tracking-normal">
+                  Laboratorio de identidad
+                </h1>
+              </div>
+            </div>
+            <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
+              <Button variant="secondary" onClick={() => setScreen("library")}>
+                <ArrowLeft className="mr-2 size-4" />
+                Biblioteca
+              </Button>
+              <WindowControls />
+            </div>
+          </header>
+          <IdentityPreview items={items} />
+        </main>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider>
       <main className="relative h-screen overflow-hidden bg-background text-foreground">
@@ -306,6 +327,10 @@ function App() {
             </div>
 
             <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
+              <Button variant="secondary" onClick={() => setScreen("identity")}>
+                <Sparkles className="mr-2 size-4" />
+                Identidad
+              </Button>
               <Button variant="secondary" onClick={() => setScreen("motion")}>
                 <Sparkles className="mr-2 size-4" />
                 Motion Lab
@@ -530,16 +555,8 @@ function App() {
               onOpenCopilot={() => setScreen("copilot")}
               selectedId={selected?.id ?? ""}
             />
-            <div className="flex items-center gap-2">
-              <Input
-                className="h-9 w-56"
-                placeholder="Pegar ruta..."
-                value={manualPath}
-                onChange={(event) => setManualPath(event.target.value)}
-              />
-              <Button variant="secondary" onClick={addManualPath}>
-                Importar
-              </Button>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Nexus Core Preview
             </div>
           </footer>
         </div>
@@ -603,6 +620,208 @@ function LauncherCard({
         {item.version ? `Version ${item.version}` : item.description}
       </p>
     </motion.button>
+  );
+}
+
+function IdentityPreview({ items }: { items: LibraryItem[] }) {
+  const featured = items.filter((item) => item.favorite).slice(0, 8);
+  const carouselItems = featured.length ? featured : items.slice(0, 8);
+
+  return (
+    <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
+      <ScrollArea className="h-full">
+        <div className="mx-auto max-w-7xl space-y-6 p-6">
+          <DynamicIdentityBanner />
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+            <div className="space-y-6">
+              <UpdateBannerPreview />
+              <IconPackPreview />
+            </div>
+            <div className="space-y-6">
+              <LogoCarousel items={carouselItems} />
+              <MicroLoaderPreview />
+            </div>
+          </div>
+        </div>
+      </ScrollArea>
+    </section>
+  );
+}
+
+function DynamicIdentityBanner() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+      className="relative overflow-hidden rounded-lg border border-white/10 bg-[#111215] px-8 py-7 shadow-[0_28px_90px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)]"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(232,220,193,0.10),transparent_35%,rgba(84,102,122,0.14))]" />
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute -right-20 top-1/2 size-72 -translate-y-1/2 rounded-full border border-primary/20"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
+      />
+      <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div>
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+            <span className="size-1.5 rounded-full bg-primary shadow-[0_0_18px_hsl(var(--primary))]" />
+            Identity preview
+          </div>
+          <h2 className="max-w-4xl text-5xl font-semibold tracking-normal text-foreground">
+            Nexus Core
+          </h2>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Un centro de mando sobrio para abrir, organizar y entender todo lo que vive en tu PC.
+          </p>
+        </div>
+        <div className="grid min-w-72 gap-2 rounded-md border border-white/10 bg-black/24 p-4">
+          {["Launcher", "Copilot", "Library"].map((label, index) => (
+            <motion.div
+              key={label}
+              className="flex items-center justify-between rounded-sm bg-white/[0.035] px-3 py-2 text-sm"
+              animate={{ opacity: [0.58, 1, 0.58] }}
+              transition={{ duration: 2.4, delay: index * 0.3, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <span className="text-muted-foreground">{label}</span>
+              <span className="text-primary">Online</span>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function UpdateBannerPreview() {
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-card/80 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            Update banner
+          </p>
+          <h3 className="mt-1 text-xl font-semibold">Actualizar banner</h3>
+        </div>
+        <Badge variant="secondary">21st style</Badge>
+      </div>
+      <UpgradeBanner />
+    </div>
+  );
+}
+
+function LogoCarousel({ items }: { items: LibraryItem[] }) {
+  const loopItems = [...items, ...items];
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-card/80 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          Logo carousel
+        </p>
+        <h3 className="mt-1 text-xl font-semibold">Ecosistema conectado</h3>
+      </div>
+      <div className="relative overflow-hidden rounded-md border border-white/8 bg-black/30 py-6 [mask-image:linear-gradient(to_right,transparent,black_14%,black_86%,transparent)]">
+        <div className="nexus-logo-track flex w-max gap-8 px-4">
+          {loopItems.map((item, index) => (
+            <div
+              key={`${item.id}-${index}`}
+              className="flex min-w-40 items-center justify-center gap-3 opacity-70 grayscale transition-all hover:opacity-100 hover:grayscale-0"
+            >
+              <AppIcon item={item} className="size-9 bg-white/[0.04]" iconClassName="size-4" />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">{item.name}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IconPackPreview() {
+  const iconItems = [
+    { label: "Games", icon: Play },
+    { label: "Apps", icon: AppWindow },
+    { label: "Projects", icon: Folder },
+    { label: "System", icon: HardDrive },
+    { label: "Copilot", icon: Sparkles },
+    { label: "Command", icon: CommandIcon },
+  ];
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-card/80 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          Icon pack
+        </p>
+        <h3 className="mt-1 text-xl font-semibold">Categorias Nexus</h3>
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        {iconItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <motion.div
+              key={item.label}
+              whileHover={{ y: -3 }}
+              className="rounded-md border border-white/8 bg-black/24 p-4"
+            >
+              <div className="mb-4 grid size-11 place-items-center rounded-md border border-primary/20 bg-primary/10 text-primary">
+                <Icon className="size-5" />
+              </div>
+              <div className="text-sm font-semibold">{item.label}</div>
+              <div className="mt-1 text-xs text-muted-foreground">Core glyph</div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MicroLoaderPreview() {
+  return (
+    <div className="rounded-lg border border-white/10 bg-card/80 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          Animated micro-loaders
+        </p>
+        <h3 className="mt-1 text-xl font-semibold">Estados de sistema</h3>
+      </div>
+      <div className="grid gap-3">
+        <MicroLoader label="Indexando biblioteca" tone="primary" />
+        <MicroLoader label="Validando ruta" tone="muted" />
+        <MicroLoader label="Abriendo programa" tone="success" />
+      </div>
+    </div>
+  );
+}
+
+function MicroLoader({ label, tone }: { label: string; tone: "primary" | "muted" | "success" }) {
+  const color =
+    tone === "success"
+      ? "bg-emerald-300"
+      : tone === "primary"
+        ? "bg-primary"
+        : "bg-muted-foreground";
+
+  return (
+    <div className="flex items-center justify-between rounded-md border border-white/8 bg-black/24 px-4 py-3">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-1.5">
+        {[0, 1, 2].map((dot) => (
+          <motion.span
+            key={dot}
+            className={cn("size-2 rounded-full", color)}
+            animate={{ opacity: [0.3, 1, 0.3], y: [0, -4, 0] }}
+            transition={{ duration: 0.9, delay: dot * 0.12, repeat: Infinity, ease: "easeInOut" }}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

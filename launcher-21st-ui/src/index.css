@@ -91,6 +91,23 @@ body {
   -webkit-app-region: no-drag;
 }
 
+.nexus-logo-track {
+  animation: nexus-logo-scroll 24s linear infinite;
+}
+
+.nexus-logo-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes nexus-logo-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 button,
 input {
   font: inherit;
