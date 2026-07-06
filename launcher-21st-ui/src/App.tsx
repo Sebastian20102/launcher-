@@ -203,7 +203,7 @@ function App() {
   if (screen === "motion") {
     return (
       <TooltipProvider>
-        <main className="relative min-h-screen bg-background text-foreground">
+        <main className="relative h-screen overflow-hidden bg-background text-foreground">
           <OdysseyBackdrop intensity={actionStatus === "idle" ? "calm" : "active"} />
           <header className={cn("relative z-10 flex h-[72px] items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
             <div className="flex items-center gap-4">
@@ -236,9 +236,9 @@ function App() {
 
   return (
     <TooltipProvider>
-      <main className="relative min-h-screen bg-background text-foreground">
+      <main className="relative h-screen overflow-hidden bg-background text-foreground">
         <OdysseyBackdrop intensity={actionStatus === "idle" ? "calm" : "active"} />
-        <div className="relative z-10 grid min-h-screen grid-rows-[72px_1fr_84px]">
+        <div className="relative z-10 grid h-screen grid-rows-[72px_minmax(0,1fr)_84px] overflow-hidden">
           <CopilotChat
             items={items}
             open={copilotOpen}
@@ -326,10 +326,10 @@ function App() {
             </div>
           </header>
 
-          <section className="grid min-h-0 grid-cols-[minmax(0,1fr)_390px] gap-0 max-lg:grid-cols-1">
-            <div className="min-w-0 border-r border-border">
-              <Tabs value={filter} onValueChange={setFilter} className="h-full">
-                <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <section className="grid min-h-0 overflow-hidden grid-cols-[minmax(0,1fr)_390px] gap-0 max-lg:grid-cols-1">
+            <div className="min-h-0 min-w-0 border-r border-border">
+              <Tabs value={filter} onValueChange={setFilter} className="flex h-full min-h-0 flex-col">
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
                   <TabsList>
                     {filters.map((entry) => (
                       <TabsTrigger key={entry} value={entry}>
@@ -353,7 +353,7 @@ function App() {
                   <TabsContent
                     key={entry}
                     value={entry}
-                    className="m-0 h-[calc(100vh-157px)]"
+                    className="m-0 min-h-0 flex-1 overflow-hidden"
                   >
                     <ScrollArea className="h-full">
                       <div className="grid gap-4 p-6 xl:grid-cols-2 2xl:grid-cols-3">
@@ -375,7 +375,7 @@ function App() {
             </div>
 
             <aside className="hidden min-h-0 bg-card/80 backdrop-blur lg:block">
-              <ScrollArea className="h-[calc(100vh-156px)]">
+              <ScrollArea className="h-full">
                 {selected && (
                   <div className="p-6">
                     <motion.div
@@ -487,7 +487,7 @@ function App() {
             </aside>
           </section>
 
-          <footer className="flex items-center justify-between border-t border-border bg-card/75 px-6 backdrop-blur">
+          <footer className="flex min-h-0 items-center justify-between border-t border-border bg-card/75 px-6 backdrop-blur">
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <HardDrive className="size-4" />
               {items.length} accesos indexados
