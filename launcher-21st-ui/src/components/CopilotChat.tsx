@@ -39,7 +39,36 @@ function localPreviewResponse(items: LibraryItem[]) {
   return `Estoy en modo preview porque esta ventana no tiene el puente nativo de Electron. En el .exe puedo usar una IA real con memoria si configuras OPENAI_API_KEY o NEXUS_OPENAI_API_KEY. Tu biblioteca cargada ahora tiene ${items.length} accesos, incluyendo ${games} juegos y ${projects} proyectos.`;
 }
 
-export function CopilotChat({ items, open = false, onOpenChange, mode = "dialog" }: CopilotChatProps) {
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9.\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getOpenTarget(message: string) {
+  const normalized = normalizeText(message);
+  const match = normalized.match(/^(abre|abrir|abreme|ejecuta|ejecutar|lanza|lanzar|inicia|iniciar)\s+(.+)$/);
+  return match?.[2]?.trim() ?? "";
+}
+
+function findLaunchItem(items: LibraryItem[], target: string) {
+  const normalizedTarget = normalizeText(target);
+  if (!normalizedTarget) return null;
+  const runnableItems = items.filter((item) => item.type !== "Proyecto" || /\.(exe|lnk|bat|cmd)$/i.test(item.location));
+  return (
+    runnableItems.find((item) => normalizeText(item.name) === normalizedTarget) ??
+    runnableItems.find((item) => normalizeText(item.id) === normalizedTarget) ??
+    runnableItems.find((item) => normalizeText(item.name).includes(normalizedTarget)) ??
+    runnableItems.find((item) => normalizedTarget.includes(normalizeText(item.name))) ??
+    null
+  );
+}
+
+export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, mode = "dialog" }: CopilotChatProps) {
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [memoryCount, setMemoryCount] = useState(0);
@@ -84,6 +113,46 @@ export function CopilotChat({ items, open = false, onOpenChange, mode = "dialog"
     setIsThinking(true);
 
     try {
+      const openTarget = getOpenTarget(text);
+      if (openTarget) {
+        const launchItem = findLaunchItem(items, openTarget);
+        if (!window.nexus?.openPath) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: "Puedo detectar lo que quieres abrir, pero esta vista esta en modo navegador. Para lanzar programas reales abre el .exe de Nexus Launcher.",
+            },
+          ]);
+          return;
+        }
+        if (!launchItem) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: `No encontre "${openTarget}" en tu biblioteca. Agregalo al launcher o dime el nombre exacto del programa.`,
+            },
+          ]);
+          return;
+        }
+        onSelectItem(launchItem.id);
+        const result = await window.nexus.openPath(launchItem.realPath || launchItem.location);
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: result.ok
+              ? `Listo, abri ${launchItem.name}.`
+              : `Encontre ${launchItem.name}, pero no pude abrirlo: ${result.message ?? "la ruta no respondio"}.`,
+          },
+        ]);
+        return;
+      }
+
       const response = window.nexus?.chatWithAi
         ? await window.nexus.chatWithAi({ message: text, items })
         : { ok: false, content: localPreviewResponse(items) };
