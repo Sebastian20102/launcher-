@@ -73,6 +73,7 @@ import {
   getIcon,
   seedLibrary,
   type LibraryItem,
+  type PathAnalysis,
 } from "@/lib/library";
 import {
   FocusDepthCard,
@@ -319,6 +320,63 @@ function App() {
     setSelectedId(nextItem.id);
   }
 
+  function mergeItemWithAnalysis(item: LibraryItem, analysis: PathAnalysis) {
+    const analyzedItem = createItemFromAnalysis(analysis, item.type);
+    return {
+      ...item,
+      type: analyzedItem.type,
+      status: analyzedItem.status,
+      location: analyzedItem.location,
+      lastUsed: analyzedItem.lastUsed,
+      description: analyzedItem.description,
+      icon: analyzedItem.icon,
+      size: analyzedItem.size,
+      fileModified: analyzedItem.fileModified,
+      source: analyzedItem.source,
+      installDate: analyzedItem.installDate,
+    };
+  }
+
+  async function refreshLibraryMetadata() {
+    if (!window.nexus?.analyzePath) {
+      finishStatus("error", "El reanalisis real de metadata funciona en la app de escritorio");
+      return;
+    }
+    const confirmed = window.confirm("Reanalizar metadata local de la biblioteca? Nexus actualizara estado, tipo, icono, tamano y fecha cuando Windows entregue esos datos. No cambia tus nombres ni borra archivos.");
+    if (!confirmed) return;
+
+    setActionStatus("validating");
+    setNotice("Reanalizando metadata local...");
+    let refreshedCount = 0;
+    let missingCount = 0;
+    const nextItems: LibraryItem[] = [];
+
+    for (const item of items) {
+      const targetPath = item.realPath || item.location;
+      const analysis = await window.nexus.analyzePath(targetPath).catch(() => null);
+      if (!analysis) {
+        nextItems.push(item);
+        missingCount += 1;
+        continue;
+      }
+      const refreshedItem = mergeItemWithAnalysis(item, analysis);
+      if (
+        refreshedItem.status !== item.status ||
+        refreshedItem.type !== item.type ||
+        refreshedItem.size !== item.size ||
+        refreshedItem.fileModified !== item.fileModified ||
+        refreshedItem.icon !== item.icon ||
+        refreshedItem.source !== item.source
+      ) {
+        refreshedCount += 1;
+      }
+      nextItems.push(refreshedItem);
+    }
+
+    await updateItems(nextItems, `Metadata revisada: ${refreshedCount} cambios, ${missingCount} sin respuesta`);
+    finishStatus("success", `Metadata revisada: ${refreshedCount} cambios reales`);
+  }
+
   async function openSelected() {
     if (!selected) return;
     if (!window.nexus) {
@@ -470,6 +528,8 @@ function App() {
           <LibraryCleanup
             items={items}
             duplicateGroups={duplicateGroups}
+            isRefreshing={actionStatus === "validating"}
+            notice={notice}
             onSelect={(id) => {
               setSelectedId(id);
               setScreen("library");
@@ -477,6 +537,7 @@ function App() {
             onReveal={revealItem}
             onHide={hideLibraryItem}
             onKeepOnly={keepOnlyDuplicate}
+            onRefreshMetadata={refreshLibraryMetadata}
           />
         </motion.main>
       </TooltipProvider>
@@ -1406,17 +1467,23 @@ function buildDuplicateGroups(items: LibraryItem[]): DuplicateGroup[] {
 function LibraryCleanup({
   items,
   duplicateGroups,
+  isRefreshing,
+  notice,
   onSelect,
   onReveal,
   onHide,
   onKeepOnly,
+  onRefreshMetadata,
 }: {
   items: LibraryItem[];
   duplicateGroups: DuplicateGroup[];
+  isRefreshing: boolean;
+  notice: string;
   onSelect: (id: string) => void;
   onReveal: (item: LibraryItem) => void;
   onHide: (id: string) => void;
   onKeepOnly: (group: DuplicateGroup, keeperId: string) => void;
+  onRefreshMetadata: () => void;
 }) {
   const byType = useMemo(() => {
     return filters.slice(1).map((type) => ({
@@ -1455,6 +1522,13 @@ function LibraryCleanup({
                 <Metric label="Posibles grupos" value={String(duplicateGroups.length)} />
                 <Metric label="Sin revisar" value={String(allReviewItems.length)} />
                 <Metric label="Limpios" value={String(cleanCount)} />
+              </div>
+              <Button className="mt-5 w-full" onClick={onRefreshMetadata} disabled={isRefreshing}>
+                <RotateCcw className={cn("mr-2 size-4", isRefreshing && "animate-spin")} />
+                {isRefreshing ? "Reanalizando..." : "Reanalizar metadata local"}
+              </Button>
+              <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 p-4 text-xs leading-5 text-muted-foreground">
+                Estado: {notice}
               </div>
             </div>
 
