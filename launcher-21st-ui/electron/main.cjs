@@ -218,6 +218,103 @@ async function getSystemSnapshot() {
   };
 }
 
+const imageExtensions = new Set(["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "ico"]);
+const videoExtensions = new Set(["mp4", "webm", "mov", "mkv", "avi", "m4v"]);
+const textExtensions = new Set(["txt", "md", "json", "csv", "log", "xml", "yml", "yaml", "ini", "toml"]);
+const documentExtensions = new Set(["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf"]);
+const codeExtensions = new Set(["js", "jsx", "ts", "tsx", "py", "cs", "cpp", "c", "html", "css", "scss", "java", "go", "rs", "php"]);
+const executableExtensions = new Set(["exe", "lnk", "bat", "cmd", "msi", "appref-ms"]);
+const gameLaunchers = ["steam", "epic games", "battle.net", "gog", "riot", "rockstar", "ubisoft", "ea app", "roblox"];
+const developerTools = ["code", "visual studio", "cursor", "zed", "git", "node", "python", "unity", "unreal", "blender"];
+
+function cleanAnalysisName(rawName) {
+  return String(rawName || "Nuevo acceso")
+    .replace(/\.(exe|lnk|bat|cmd|msi|appref-ms|png|jpg|jpeg|webp|gif|bmp|svg|ico|mp4|webm|mov|mkv|avi|m4v|txt|md|json|csv|log|xml|yml|yaml|ini|toml|pdf|docx?|xlsx?|pptx?|rtf)$/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "Nuevo acceso";
+}
+
+function inferAnalysisType(name, extension, isDirectory) {
+  const lowerName = String(name || "").toLowerCase();
+  if (isDirectory) return "Proyecto";
+  if (imageExtensions.has(extension) || videoExtensions.has(extension) || textExtensions.has(extension) || documentExtensions.has(extension) || codeExtensions.has(extension)) return "Archivo";
+  if (gameLaunchers.some((entry) => lowerName.includes(entry))) return "Juego";
+  if (developerTools.some((entry) => lowerName.includes(entry))) return "Programa";
+  if (executableExtensions.has(extension)) return "Programa";
+  return "Archivo";
+}
+
+function inferAnalysisIcon(type, extension) {
+  if (type === "Proyecto") return "folder";
+  if (imageExtensions.has(extension)) return "image";
+  if (videoExtensions.has(extension)) return "video";
+  if (textExtensions.has(extension) || documentExtensions.has(extension) || codeExtensions.has(extension)) return "text";
+  if (type === "Juego") return "gamepad";
+  if (type === "Programa") return "monitor";
+  if (type === "Sistema") return "terminal";
+  return "text";
+}
+
+function buildAnalysisDescription(type, extension, isDirectory) {
+  if (isDirectory || type === "Proyecto") return "Carpeta o proyecto local detectado desde el sistema.";
+  if (imageExtensions.has(extension)) return "Imagen local detectada desde el sistema.";
+  if (videoExtensions.has(extension)) return "Video local detectado desde el sistema.";
+  if (documentExtensions.has(extension)) return "Documento local detectado desde el sistema.";
+  if (codeExtensions.has(extension)) return "Archivo de codigo detectado desde el sistema.";
+  if (textExtensions.has(extension)) return "Archivo de texto o datos detectado desde el sistema.";
+  if (type === "Juego") return "Juego o launcher de juegos detectado desde el sistema.";
+  if (type === "Programa") return "Programa local detectado desde el sistema.";
+  return "Archivo local detectado desde el sistema.";
+}
+
+async function analyzePath(targetPath) {
+  if (!targetPath || typeof targetPath !== "string") return null;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(targetPath)) {
+    const urlName = targetPath.split("/").filter(Boolean).pop() || targetPath;
+    return {
+      path: targetPath,
+      exists: true,
+      isDirectory: false,
+      extension: "",
+      sizeBytes: null,
+      modifiedAt: null,
+      createdAt: null,
+      inferredType: "Archivo",
+      icon: "text",
+      name: cleanAnalysisName(urlName),
+      description: "Enlace externo agregado a la biblioteca.",
+      source: "URL externa",
+    };
+  }
+  const exists = fsSync.existsSync(targetPath);
+  const rawName = path.basename(targetPath);
+  const extension = path.extname(rawName).replace(/^\./, "").toLowerCase();
+  let stats = null;
+  try {
+    stats = exists ? await fs.stat(targetPath) : null;
+  } catch {
+    stats = null;
+  }
+  const isDirectory = Boolean(stats?.isDirectory());
+  const name = cleanAnalysisName(rawName);
+  const inferredType = inferAnalysisType(name, extension, isDirectory);
+  return {
+    path: targetPath,
+    exists,
+    isDirectory,
+    extension,
+    sizeBytes: stats && !isDirectory ? stats.size : null,
+    modifiedAt: stats?.mtime ? stats.mtime.toISOString() : null,
+    createdAt: stats?.birthtime ? stats.birthtime.toISOString() : null,
+    inferredType,
+    icon: inferAnalysisIcon(inferredType, extension),
+    name,
+    description: buildAnalysisDescription(inferredType, extension, isDirectory),
+    source: isDirectory ? "Carpeta local" : "Archivo local",
+  };
+}
+
 function extractMemoryFacts(message) {
   if (typeof message !== "string") return [];
   const text = message.trim();
@@ -797,6 +894,8 @@ ipcMain.handle("path:validate", async (_event, targetPath) => {
   }
 });
 
+ipcMain.handle("path:analyze", async (_event, targetPath) => analyzePath(targetPath));
+
 ipcMain.handle("path:open", async (_event, targetPath) => {
   if (!targetPath || typeof targetPath !== "string") {
     return { ok: false, message: "Ruta vacia" };
@@ -842,7 +941,7 @@ ipcMain.handle("dialog:pickAnyFile", async () => {
     title: "Agregar archivo",
     properties: ["openFile"],
     filters: [
-      { name: "Archivos utiles", extensions: ["exe", "lnk", "bat", "cmd", "png", "jpg", "jpeg", "webp", "gif", "mp4", "webm", "mov", "mkv", "txt", "md", "json", "csv", "log"] },
+      { name: "Archivos utiles", extensions: ["exe", "lnk", "bat", "cmd", "msi", "png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "ico", "mp4", "webm", "mov", "mkv", "avi", "txt", "md", "json", "csv", "log", "xml", "yml", "yaml", "ini", "toml", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf", "js", "jsx", "ts", "tsx", "py", "cs", "cpp", "c", "html", "css", "scss"] },
       { name: "Todos", extensions: ["*"] },
     ],
   });

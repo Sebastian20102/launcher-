@@ -1,4 +1,4 @@
-import type { LibraryItem } from "@/lib/library";
+import type { LibraryItem, PathAnalysis } from "@/lib/library";
 
 export type NativeResult = {
   ok: boolean;
@@ -52,6 +52,7 @@ declare global {
       loadLibrary: () => Promise<LibraryItem[]>;
       saveLibrary: (items: LibraryItem[]) => Promise<LibraryItem[]>;
       validatePath: (targetPath: string) => Promise<boolean>;
+      analyzePath: (targetPath: string) => Promise<PathAnalysis | null>;
       openPath: (targetPath: string) => Promise<NativeResult>;
       revealPath: (targetPath: string) => Promise<NativeResult>;
       pickExecutable: () => Promise<string | null>;

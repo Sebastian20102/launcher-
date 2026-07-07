@@ -11,6 +11,21 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+export type PathAnalysis = {
+  path: string;
+  exists: boolean;
+  isDirectory: boolean;
+  extension: string;
+  sizeBytes: number | null;
+  modifiedAt: string | null;
+  createdAt: string | null;
+  inferredType: LibraryItem["type"];
+  icon: string;
+  name: string;
+  description: string;
+  source: string;
+};
+
 export type LibraryItem = {
   id: string;
   name: string;
@@ -136,50 +151,124 @@ export function getIcon(name: string) {
   return iconRegistry[name] ?? iconRegistry[fallbackIcon];
 }
 
+const imageExtensions = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "ico"];
+const videoExtensions = ["mp4", "webm", "mov", "mkv", "avi", "m4v"];
+const textExtensions = ["txt", "md", "json", "csv", "log", "xml", "yml", "yaml", "ini", "toml"];
+const documentExtensions = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf"];
+const codeExtensions = ["js", "jsx", "ts", "tsx", "py", "cs", "cpp", "c", "html", "css", "scss", "java", "go", "rs", "php"];
+const executableExtensions = ["exe", "lnk", "bat", "cmd", "msi", "appref-ms"];
+const gameLaunchers = ["steam", "epic games", "battle.net", "gog", "riot", "rockstar", "ubisoft", "ea app", "roblox"];
+const developerTools = ["code", "visual studio", "cursor", "zed", "git", "node", "python", "unity", "unreal", "blender"];
+
+function cleanItemName(rawName: string) {
+  return rawName
+    .replace(/\.(exe|lnk|bat|cmd|msi|appref-ms|png|jpg|jpeg|webp|gif|bmp|svg|ico|mp4|webm|mov|mkv|avi|m4v|txt|md|json|csv|log|xml|yml|yaml|ini|toml|pdf|docx?|xlsx?|pptx?|rtf)$/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "Nuevo acceso";
+}
+
+function formatBytes(value: number | null) {
+  if (!value) return undefined;
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(unitIndex ? 1 : 0)} ${units[unitIndex]}`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) return undefined;
+  return value.slice(0, 10);
+}
+
+function inferTypeFromNameAndExtension(name: string, extension: string, fallbackType: LibraryItem["type"]) {
+  const lowerName = name.toLowerCase();
+  if (fallbackType === "Proyecto") return "Proyecto";
+  if (imageExtensions.includes(extension) || videoExtensions.includes(extension) || textExtensions.includes(extension) || documentExtensions.includes(extension) || codeExtensions.includes(extension)) {
+    return "Archivo";
+  }
+  if (gameLaunchers.some((entry) => lowerName.includes(entry))) return "Juego";
+  if (developerTools.some((entry) => lowerName.includes(entry))) return "Programa";
+  if (executableExtensions.includes(extension)) return fallbackType === "Archivo" ? "Programa" : fallbackType;
+  return fallbackType;
+}
+
+function inferIcon(type: LibraryItem["type"], extension: string) {
+  if (type === "Proyecto") return "folder";
+  if (type === "Sistema") return "terminal";
+  if (imageExtensions.includes(extension)) return "image";
+  if (videoExtensions.includes(extension)) return "video";
+  if (textExtensions.includes(extension) || documentExtensions.includes(extension) || codeExtensions.includes(extension)) return "text";
+  if (type === "Juego") return "gamepad";
+  if (type === "Programa") return "monitor";
+  return "text";
+}
+
+function buildDescription(type: LibraryItem["type"], extension: string, isDirectory = false) {
+  if (isDirectory || type === "Proyecto") return "Carpeta o proyecto local agregado manualmente.";
+  if (imageExtensions.includes(extension)) return "Imagen local agregada a la biblioteca.";
+  if (videoExtensions.includes(extension)) return "Video local agregado a la biblioteca.";
+  if (documentExtensions.includes(extension)) return "Documento local agregado a la biblioteca.";
+  if (codeExtensions.includes(extension)) return "Archivo de codigo agregado a la biblioteca.";
+  if (textExtensions.includes(extension)) return "Archivo de texto o datos agregado a la biblioteca.";
+  if (type === "Juego") return "Juego o launcher de juegos agregado manualmente.";
+  if (type === "Programa") return "Programa local agregado manualmente.";
+  return "Archivo local agregado manualmente.";
+}
+
 export function createItemFromPath(targetPath: string, type: LibraryItem["type"]): LibraryItem {
   const normalized = targetPath.replaceAll("\\", "/");
   const rawName = normalized.split("/").pop() || "Nuevo acceso";
-  const name = rawName.replace(/\.(exe|lnk|bat|cmd)$/i, "");
-  const isProject = type === "Proyecto";
-  const isSystem = type === "Sistema";
+  const name = cleanItemName(rawName);
   const extension = rawName.split(".").pop()?.toLowerCase() ?? "";
-  const isImage = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"].includes(extension);
-  const isVideo = ["mp4", "webm", "mov", "mkv", "avi"].includes(extension);
-  const isText = ["txt", "md", "json", "csv", "log", "xml", "yml", "yaml"].includes(extension);
-  const inferredIcon = isProject
-    ? "folder"
-    : isSystem
-      ? "terminal"
-      : isImage
-        ? "image"
-        : isVideo
-          ? "video"
-          : isText
-            ? "text"
-            : "gamepad";
-  const inferredDescription = isProject
-    ? "Carpeta o proyecto agregado manualmente."
-    : isImage
-      ? "Imagen local agregada a la biblioteca."
-      : isVideo
-        ? "Video local agregado a la biblioteca."
-        : isText
-          ? "Archivo de texto o datos agregado a la biblioteca."
-          : type === "Archivo"
-            ? "Archivo local agregado manualmente."
-            : "Programa o juego agregado manualmente.";
+  const inferredType = inferTypeFromNameAndExtension(name, extension, type);
+  const inferredIcon = inferIcon(inferredType, extension);
   return {
     id: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
     name,
-    type,
+    type: inferredType,
     vendor: "Local",
     status: "Sin revisar",
     location: targetPath,
     lastUsed: "Nuevo",
     playtime: "Sin seguimiento",
-    description: inferredDescription,
+    description: buildDescription(inferredType, extension, type === "Proyecto"),
     accent: "bg-white/10 text-white",
     icon: inferredIcon,
     favorite: false,
+    source: "Archivo local",
+  };
+}
+
+export function createItemFromAnalysis(analysis: PathAnalysis, fallbackType: LibraryItem["type"]): LibraryItem {
+  const normalized = analysis.path.replaceAll("\\", "/");
+  const rawName = normalized.split("/").pop() || analysis.name || "Nuevo acceso";
+  const name = cleanItemName(analysis.name || rawName);
+  const extension = analysis.extension.replace(/^\./, "").toLowerCase();
+  const inferredType = analysis.inferredType || inferTypeFromNameAndExtension(name, extension, fallbackType);
+  const icon = analysis.icon || inferIcon(inferredType, extension);
+  const size = formatBytes(analysis.sizeBytes);
+  const fileModified = formatDate(analysis.modifiedAt);
+  return {
+    id: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
+    name,
+    type: inferredType,
+    vendor: "Local",
+    status: analysis.exists ? "Listo" : "Sin revisar",
+    location: analysis.path,
+    lastUsed: fileModified || "Nuevo",
+    playtime: "Sin seguimiento",
+    description: analysis.description || buildDescription(inferredType, extension, analysis.isDirectory),
+    accent: "bg-white/10 text-white",
+    icon,
+    favorite: false,
+    size,
+    fileModified,
+    source: analysis.source || "Archivo local",
+    installDate: formatDate(analysis.createdAt),
   };
 }

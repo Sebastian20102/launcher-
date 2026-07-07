@@ -69,6 +69,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   createItemFromPath,
+  createItemFromAnalysis,
   getIcon,
   seedLibrary,
   type LibraryItem,
@@ -292,7 +293,8 @@ function App() {
         : await window.nexus.pickExecutable();
     if (!targetPath) return;
     setActionStatus("importing");
-    const nextItem = createItemFromPath(targetPath, kind);
+    const analysis = await window.nexus.analyzePath(targetPath).catch(() => null);
+    const nextItem = analysis ? createItemFromAnalysis(analysis, kind) : createItemFromPath(targetPath, kind);
     const nextItems = [nextItem, ...items];
     await updateItems(nextItems, `${nextItem.name} agregado`);
     finishStatus("success", `${nextItem.name} agregado`);
