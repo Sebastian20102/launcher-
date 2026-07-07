@@ -381,6 +381,30 @@ function App() {
     setNotice(result.ok ? `Ubicacion abierta: ${item.name}` : result.message ?? "No pude abrir esa ubicacion");
   }
 
+  async function hideLibraryItem(itemId: string) {
+    const target = items.find((item) => item.id === itemId);
+    if (!target) return;
+    const confirmed = window.confirm(`Ocultar "${target.name}" de Nexus? No se borrara ningun archivo real.`);
+    if (!confirmed) return;
+    const nextItems = items.filter((item) => item.id !== itemId);
+    await updateItems(nextItems, `${target.name} ocultado de Nexus. No se borro ningun archivo.`);
+    if (selectedId === itemId) setSelectedId(nextItems[0]?.id ?? seedLibrary[0].id);
+  }
+
+  async function keepOnlyDuplicate(group: DuplicateGroup, keeperId: string) {
+    const keeper = group.items.find((item) => item.id === keeperId);
+    if (!keeper) return;
+    const hiddenIds = new Set(group.items.filter((item) => item.id !== keeperId).map((item) => item.id));
+    const confirmed = window.confirm(`Conservar "${keeper.name}" y ocultar ${hiddenIds.size} duplicado${hiddenIds.size === 1 ? "" : "s"} de Nexus? No se borraran archivos reales.`);
+    if (!confirmed) return;
+    const nextItems = items.filter((item) => !hiddenIds.has(item.id));
+    await updateItems(
+      nextItems,
+      `${keeper.name} conservado. ${hiddenIds.size} duplicado${hiddenIds.size === 1 ? "" : "s"} ocultado${hiddenIds.size === 1 ? "" : "s"} del launcher.`,
+    );
+    setSelectedId(keeper.id);
+  }
+
   async function persistNotes(nextNotes: NexusNote[], message = "Notas actualizadas") {
     const sortedNotes = [...nextNotes].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt.localeCompare(a.updatedAt));
     setNotes(sortedNotes);
@@ -451,6 +475,8 @@ function App() {
               setScreen("library");
             }}
             onReveal={revealItem}
+            onHide={hideLibraryItem}
+            onKeepOnly={keepOnlyDuplicate}
           />
         </motion.main>
       </TooltipProvider>
@@ -1353,11 +1379,15 @@ function LibraryCleanup({
   duplicateGroups,
   onSelect,
   onReveal,
+  onHide,
+  onKeepOnly,
 }: {
   items: LibraryItem[];
   duplicateGroups: DuplicateGroup[];
   onSelect: (id: string) => void;
   onReveal: (item: LibraryItem) => void;
+  onHide: (id: string) => void;
+  onKeepOnly: (group: DuplicateGroup, keeperId: string) => void;
 }) {
   const byType = useMemo(() => {
     return filters.slice(1).map((type) => ({
@@ -1385,6 +1415,9 @@ function LibraryCleanup({
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Detecta duplicados y accesos sin revisar con reglas locales. Esta pantalla no borra ni fusiona nada automaticamente.
               </p>
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-xs leading-5 text-muted-foreground">
+                Las acciones de limpieza solo modifican la biblioteca de Nexus. Tus juegos, programas, carpetas y archivos reales quedan intactos.
+              </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <Metric label="Accesos" value={String(items.length)} />
                 <Metric label="Posibles grupos" value={String(duplicateGroups.length)} />
@@ -1479,7 +1512,7 @@ function LibraryCleanup({
                           {item.realPath || item.location}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 md:flex-col md:items-stretch">
+                      <div className="flex flex-wrap items-center gap-2 md:flex-col md:items-stretch">
                         <Button variant="secondary" onClick={() => onSelect(item.id)}>
                           Seleccionar
                         </Button>
@@ -1487,6 +1520,16 @@ function LibraryCleanup({
                           <Folder className="mr-2 size-4" />
                           Ubicacion
                         </Button>
+                        <Button variant="secondary" onClick={() => onHide(item.id)}>
+                          <X className="mr-2 size-4" />
+                          Ocultar
+                        </Button>
+                        {group.items.length > 1 && (
+                          <Button onClick={() => onKeepOnly(group, item.id)}>
+                            <CheckCircle2 className="mr-2 size-4" />
+                            Conservar este
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
