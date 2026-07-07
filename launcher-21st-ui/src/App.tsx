@@ -115,7 +115,14 @@ type LauncherAppearance = {
   savedPresets: LauncherBackground[];
 };
 
-type Screen = "library" | "copilot" | "notes" | "system" | "news";
+type Screen = "library" | "copilot" | "notes" | "system" | "news" | "cleanup";
+
+type DuplicateGroup = {
+  key: string;
+  confidence: "Alta" | "Media";
+  reason: string;
+  items: LibraryItem[];
+};
 
 const defaultLauncherBackground: LauncherBackground = {
   url: "",
@@ -269,6 +276,7 @@ function App() {
       return matchesFilter && matchesQuery;
     });
   }, [filter, items, query]);
+  const duplicateGroups = useMemo(() => buildDuplicateGroups(items), [items]);
 
   const selected =
     items.find((item) => item.id === selectedId) ?? filteredItems[0] ?? items[0];
@@ -363,6 +371,16 @@ function App() {
     await updateItems(nextItems, "Favoritos actualizados");
   }
 
+  async function revealItem(item: LibraryItem) {
+    setSelectedId(item.id);
+    if (!window.nexus) {
+      setNotice("Abrir ubicacion real funciona en la app de escritorio");
+      return;
+    }
+    const result = await window.nexus.revealPath(item.realPath || item.location);
+    setNotice(result.ok ? `Ubicacion abierta: ${item.name}` : result.message ?? "No pude abrir esa ubicacion");
+  }
+
   async function persistNotes(nextNotes: NexusNote[], message = "Notas actualizadas") {
     const sortedNotes = [...nextNotes].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt.localeCompare(a.updatedAt));
     setNotes(sortedNotes);
@@ -406,6 +424,37 @@ function App() {
     const snapshot = await window.nexus.getSystemSnapshot();
     setSystemSnapshot(snapshot);
     setNotice("Analisis de PC actualizado");
+  }
+
+  if (screen === "cleanup") {
+    return (
+      <TooltipProvider>
+        <motion.main
+          className="relative h-screen overflow-hidden bg-black text-foreground"
+          style={{ "--nexus-glass": launcherAppearance.glass } as CSSProperties}
+          initial={{ opacity: 0, filter: "blur(8px)" }}
+          animate={{ opacity: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.32, ease: appleEase }}
+        >
+          <CopilotLauncherBackdrop background={launcherBackground} />
+          <PageHeader
+            eyebrow="Biblioteca"
+            title="Limpieza inteligente"
+            icon={CheckCircle2}
+            onBack={() => setScreen("library")}
+          />
+          <LibraryCleanup
+            items={items}
+            duplicateGroups={duplicateGroups}
+            onSelect={(id) => {
+              setSelectedId(id);
+              setScreen("library");
+            }}
+            onReveal={revealItem}
+          />
+        </motion.main>
+      </TooltipProvider>
+    );
   }
 
   if (screen === "notes") {
@@ -576,6 +625,10 @@ function App() {
                 <Newspaper className="mr-2 size-4" />
                 Noticias
               </Button>
+              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("cleanup")}>
+                <CheckCircle2 className="mr-2 size-4" />
+                Limpieza
+              </Button>
               <Button variant="secondary" className="shrink-0 sm:hidden" onClick={() => setScreen("copilot")}>
                 <Sparkles className="mr-2 size-4" />
                 Copilot
@@ -740,6 +793,10 @@ function App() {
                           <Button variant="secondary" className="col-span-2" onClick={() => createNote(selected.id)}>
                             <FileText className="mr-2 size-4" />
                             Crear nota sobre este acceso
+                          </Button>
+                          <Button variant="secondary" className="col-span-2" onClick={() => setScreen("cleanup")}>
+                            <CheckCircle2 className="mr-2 size-4" />
+                            Revisar duplicados
                           </Button>
                         </div>
 
@@ -1229,6 +1286,227 @@ function PageHeader({
         <WindowControls />
       </div>
     </header>
+  );
+}
+
+function normalizeCleanupKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\b(single player demo|demo|launcher|shortcut|acceso directo|x64|win64|setup|installer)\b/g, " ")
+    .replace(/\b\d+(\.\d+){1,}\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeLocationKey(item: LibraryItem) {
+  return (item.realPath || item.location || "")
+    .replaceAll("\\", "/")
+    .toLowerCase()
+    .replace(/\/+/g, "/")
+    .replace(/\/$/, "");
+}
+
+function buildDuplicateGroups(items: LibraryItem[]): DuplicateGroup[] {
+  const byName = new Map<string, LibraryItem[]>();
+  const byLocation = new Map<string, LibraryItem[]>();
+
+  for (const item of items) {
+    const nameKey = normalizeCleanupKey(item.name);
+    const locationKey = normalizeLocationKey(item);
+    if (nameKey.length > 2) byName.set(nameKey, [...(byName.get(nameKey) ?? []), item]);
+    if (locationKey.length > 4) byLocation.set(locationKey, [...(byLocation.get(locationKey) ?? []), item]);
+  }
+
+  const groups = new Map<string, DuplicateGroup>();
+
+  for (const [key, groupItems] of byLocation) {
+    if (groupItems.length < 2) continue;
+    groups.set(`location:${key}`, {
+      key: `location:${key}`,
+      confidence: "Alta",
+      reason: "Misma ruta local detectada en mas de un acceso.",
+      items: groupItems,
+    });
+  }
+
+  for (const [key, groupItems] of byName) {
+    if (groupItems.length < 2) continue;
+    const locationSet = new Set(groupItems.map(normalizeLocationKey));
+    groups.set(`name:${key}`, {
+      key: `name:${key}`,
+      confidence: locationSet.size === 1 ? "Alta" : "Media",
+      reason: locationSet.size === 1 ? "Mismo nombre y misma ruta." : "Nombre muy parecido; requiere comparar rutas antes de fusionar.",
+      items: groupItems,
+    });
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => b.items.length - a.items.length || a.confidence.localeCompare(b.confidence))
+    .slice(0, 24);
+}
+
+function LibraryCleanup({
+  items,
+  duplicateGroups,
+  onSelect,
+  onReveal,
+}: {
+  items: LibraryItem[];
+  duplicateGroups: DuplicateGroup[];
+  onSelect: (id: string) => void;
+  onReveal: (item: LibraryItem) => void;
+}) {
+  const byType = useMemo(() => {
+    return filters.slice(1).map((type) => ({
+      type,
+      count: items.filter((item) => item.type === type).length,
+    }));
+  }, [items]);
+  const allReviewItems = items.filter((item) => item.status !== "Listo" || item.playtime === "Sin seguimiento");
+  const reviewItems = allReviewItems.slice(0, 8);
+  const cleanCount = Math.max(0, items.length - duplicateGroups.reduce((total, group) => total + group.items.length, 0));
+
+  return (
+    <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
+      <ScrollArea className="h-full">
+        <div className="mx-auto grid max-w-7xl gap-6 p-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="space-y-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+              <div className="mb-5 grid size-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.075]">
+                <CheckCircle2 className="size-5" />
+              </div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Higiene de biblioteca
+              </p>
+              <h2 className="mt-2 text-3xl font-semibold">Comparar antes de tocar</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                Detecta duplicados y accesos sin revisar con reglas locales. Esta pantalla no borra ni fusiona nada automaticamente.
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <Metric label="Accesos" value={String(items.length)} />
+                <Metric label="Posibles grupos" value={String(duplicateGroups.length)} />
+                <Metric label="Sin revisar" value={String(allReviewItems.length)} />
+                <Metric label="Limpios" value={String(cleanCount)} />
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Distribucion
+              </p>
+              <div className="mt-4 space-y-3">
+                {byType.map((entry) => (
+                  <div key={entry.type} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">{entry.type}</span>
+                      <Badge variant="secondary">{entry.count}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Cola de revision
+              </p>
+              <div className="mt-4 space-y-2">
+                {reviewItems.length ? reviewItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onSelect(item.id)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/25 p-3 text-left text-sm transition-colors hover:bg-white/[0.075]"
+                  >
+                    <span className="min-w-0 truncate">{item.name}</span>
+                    <Badge variant="secondary">{item.status}</Badge>
+                  </button>
+                )) : (
+                  <p className="text-sm leading-6 text-muted-foreground">No hay accesos urgentes en cola.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="min-w-0 space-y-4">
+            {duplicateGroups.length ? duplicateGroups.map((group, index) => (
+              <motion.article
+                key={group.key}
+                layout
+                initial={{ opacity: 0, y: 16, filter: "blur(8px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                transition={{ ...appleSpring, delay: Math.min(index * 0.035, 0.18) }}
+                className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={group.confidence === "Alta" ? "default" : "secondary"}>
+                        Confianza {group.confidence}
+                      </Badge>
+                      <Badge variant="secondary">{group.items.length} accesos</Badge>
+                    </div>
+                    <h3 className="mt-4 text-2xl font-semibold">Grupo posible #{index + 1}</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{group.reason}</p>
+                  </div>
+                  <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-black/25">
+                    <Search className="size-5" />
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3">
+                  {group.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 md:grid-cols-[minmax(0,1fr)_auto]"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <AppIcon item={item} className="size-9 shrink-0" iconClassName="size-5" />
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold">{item.name}</div>
+                            <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                              <span>{item.type}</span>
+                              <span>{item.size || "Tamano no medido"}</span>
+                              <span>{item.fileModified || item.lastUsed}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 truncate rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-muted-foreground">
+                          {item.realPath || item.location}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 md:flex-col md:items-stretch">
+                        <Button variant="secondary" onClick={() => onSelect(item.id)}>
+                          Seleccionar
+                        </Button>
+                        <Button variant="secondary" onClick={() => onReveal(item)}>
+                          <Folder className="mr-2 size-4" />
+                          Ubicacion
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.article>
+            )) : (
+              <div className="grid min-h-[520px] place-items-center rounded-3xl border border-white/10 bg-white/[0.045] p-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+                <div>
+                  <CheckCircle2 className="mx-auto mb-4 size-12 text-white/70" />
+                  <h2 className="text-3xl font-semibold">No hay duplicados claros</h2>
+                  <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+                    La biblioteca no muestra coincidencias fuertes por nombre o ruta. Cuando importes mas accesos, esta pantalla seguira revisando sin modificar tus datos.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </ScrollArea>
+    </section>
   );
 }
 
