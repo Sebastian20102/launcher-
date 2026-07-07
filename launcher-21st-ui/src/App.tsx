@@ -1335,6 +1335,35 @@ function normalizeLocationKey(item: LibraryItem) {
     .replace(/\/$/, "");
 }
 
+function getVersionSignature(item: LibraryItem) {
+  const text = `${item.name} ${item.version || ""} ${item.location || ""}`.toLowerCase();
+  const versions = text.match(/\b\d+(?:\.\d+){1,4}\b/g) ?? [];
+  const architecture = text.match(/\b(x86|x64|64-bit|32-bit|arm64)\b/g) ?? [];
+  return [...versions, ...architecture].join("|");
+}
+
+function isVersionSensitiveComponent(item: LibraryItem) {
+  const text = `${item.name} ${item.vendor} ${item.location}`.toLowerCase();
+  return /\b(python|node|java|dotnet|\.net|runtime|sdk|redistributable|visual c\+\+|microsoft visual c|driver|framework)\b/.test(text);
+}
+
+function shouldGroupByName(groupItems: LibraryItem[]) {
+  if (groupItems.length < 2) return false;
+  const locationSet = new Set(groupItems.map(normalizeLocationKey));
+  if (locationSet.size === 1) return true;
+
+  const typeSet = new Set(groupItems.map((item) => item.type));
+  if (typeSet.size > 1) return false;
+
+  const hasVersionSensitiveItem = groupItems.some(isVersionSensitiveComponent);
+  if (hasVersionSensitiveItem) {
+    const signatures = new Set(groupItems.map(getVersionSignature).filter(Boolean));
+    if (signatures.size > 1) return false;
+  }
+
+  return true;
+}
+
 function buildDuplicateGroups(items: LibraryItem[]): DuplicateGroup[] {
   const byName = new Map<string, LibraryItem[]>();
   const byLocation = new Map<string, LibraryItem[]>();
@@ -1359,7 +1388,7 @@ function buildDuplicateGroups(items: LibraryItem[]): DuplicateGroup[] {
   }
 
   for (const [key, groupItems] of byName) {
-    if (groupItems.length < 2) continue;
+    if (!shouldGroupByName(groupItems)) continue;
     const locationSet = new Set(groupItems.map(normalizeLocationKey));
     groups.set(`name:${key}`, {
       key: `name:${key}`,
@@ -1417,6 +1446,9 @@ function LibraryCleanup({
               </p>
               <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-xs leading-5 text-muted-foreground">
                 Las acciones de limpieza solo modifican la biblioteca de Nexus. Tus juegos, programas, carpetas y archivos reales quedan intactos.
+              </div>
+              <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-xs leading-5 text-muted-foreground">
+                Para evitar falsos positivos, Nexus no mezcla tipos distintos ni agrupa versiones diferentes de runtimes, SDKs, drivers o componentes como Python, .NET y Visual C++.
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <Metric label="Accesos" value={String(items.length)} />
