@@ -168,7 +168,10 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
           return;
         }
         onSelectItem(launchItem.id);
-        const result = await window.nexus.openPath(launchItem.realPath || launchItem.location);
+        const result = await window.nexus.openPath(launchItem.realPath || launchItem.location, {
+          itemId: launchItem.id,
+          name: launchItem.name,
+        });
         setMessages((current) => [
           ...current,
           {

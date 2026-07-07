@@ -83,7 +83,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { CopilotChat } from "@/components/CopilotChat";
 import { isDesktop, loadNativeLibrary, saveNativeLibrary } from "@/lib/native";
 import { cn } from "@/lib/utils";
-import type { NexusNote, SystemSnapshot } from "@/types/electron";
+import type { NexusNote, SystemSnapshot, UsageStats } from "@/types/electron";
 
 const filters = ["Todo", "Juego", "Programa", "Proyecto", "Sistema", "Archivo"];
 const launcherAppearanceStorageKey = "nexus-launcher-appearance-preview";
@@ -178,6 +178,7 @@ function App() {
   const [launcherAppearance, setLauncherAppearance] = useState<LauncherAppearance>(defaultLauncherAppearance);
   const [notes, setNotes] = useState<NexusNote[]>([]);
   const [systemSnapshot, setSystemSnapshot] = useState<SystemSnapshot | null>(null);
+  const [usageStats, setUsageStats] = useState<UsageStats>({});
 
   useEffect(() => {
     loadNativeLibrary(seedLibrary)
@@ -254,6 +255,11 @@ function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!window.nexus?.loadUsageStats) return;
+    window.nexus.loadUsageStats().then(setUsageStats).catch(() => setUsageStats({}));
+  }, []);
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const matchesFilter = filter === "Todo" || item.type === filter;
@@ -267,6 +273,10 @@ function App() {
   const selected =
     items.find((item) => item.id === selectedId) ?? filteredItems[0] ?? items[0];
   const launcherBackground = launcherAppearance.background;
+  const selectedUsage = selected ? usageStats[selected.id] : undefined;
+  const selectedUsageLabel = selectedUsage?.totalSeconds
+    ? formatUsageDuration(selectedUsage.totalSeconds)
+    : "Sin seguimiento real";
 
   async function updateItems(nextItems: LibraryItem[], message: string) {
     setItems(nextItems);
@@ -309,7 +319,12 @@ function App() {
     }
     setActionStatus("opening");
     setNotice(`Abriendo ${selected.name}...`);
-    const result = await window.nexus.openPath(selected.location);
+    const result = await window.nexus.openPath(selected.location, { itemId: selected.id, name: selected.name });
+    if (result.ok && window.nexus.loadUsageStats) {
+      window.setTimeout(() => {
+        window.nexus?.loadUsageStats().then(setUsageStats).catch(() => {});
+      }, 500);
+    }
     finishStatus(result.ok ? "success" : "error", result.ok ? `${selected.name} abierto` : result.message ?? "No se pudo abrir");
   }
 
@@ -769,7 +784,7 @@ function App() {
                         <Metric label="Tamano" value={selected.size || "No disponible"} />
                         <Metric label="Version" value={selected.version || "No disponible"} />
                         <Metric label="Origen" value={selected.vendor} />
-                        <Metric label="Uso" value="Sin seguimiento real" />
+                        <Metric label="Uso" value={selectedUsageLabel} />
                         <Metric label="Fuente" value={selected.source || "Local"} />
                         <Metric label="Modificado" value={selected.fileModified || selected.lastUsed} />
                         <Metric label="AppID" value={selected.appId || "No aplica"} />
@@ -799,7 +814,13 @@ function App() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                          {[notice, "Biblioteca persistente en AppData", "UI React lista para empaquetar", isDesktop() ? "Modo escritorio activo" : "Modo navegador activo"].map((entry) => (
+                          {[
+                            notice,
+                            selectedUsage ? `${selectedUsage.sessions} sesiones registradas (${formatUsageDuration(selectedUsage.totalSeconds)})` : "Seguimiento real inicia al abrir apps desde Nexus",
+                            "Biblioteca persistente en AppData",
+                            "UI React lista para empaquetar",
+                            isDesktop() ? "Modo escritorio activo" : "Modo navegador activo",
+                          ].map((entry) => (
                             <div key={entry} className="flex items-center gap-3 text-sm text-muted-foreground">
                               <CheckCircle2 className="size-4 text-white/70" />
                               {entry}
@@ -1339,6 +1360,15 @@ function formatDuration(seconds: number) {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   return days ? `${days} d ${hours} h` : `${hours} h`;
+}
+
+function formatUsageDuration(seconds: number) {
+  if (!seconds) return "Sin seguimiento real";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours) return `${hours} h ${minutes} min`;
+  if (minutes) return `${minutes} min`;
+  return `${Math.max(1, Math.round(seconds))} s`;
 }
 
 function SystemAnalysis({

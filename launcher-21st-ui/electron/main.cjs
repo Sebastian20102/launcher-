@@ -3,8 +3,10 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { execFile } = require("node:child_process");
 
 let mainWindow;
+const activeUsageTrackers = new Map();
 const OPENAI_MODEL = process.env.NEXUS_OPENAI_MODEL || process.env.OPENAI_MODEL || "gpt-5.5";
 const OLLAMA_MODEL = process.env.NEXUS_OLLAMA_MODEL || "llama3.2:3b";
 const OLLAMA_BASE_URL = process.env.NEXUS_OLLAMA_BASE_URL || "http://127.0.0.1:11434";
@@ -25,6 +27,10 @@ function aiMemoryPath() {
 
 function aiSettingsPath() {
   return path.join(app.getPath("userData"), "ai-settings.json");
+}
+
+function usageStatsPath() {
+  return path.join(app.getPath("userData"), "usage.json");
 }
 
 function notesPath() {
@@ -182,6 +188,102 @@ async function writeNotes(notes) {
     : [];
   await fs.writeFile(file, JSON.stringify(safeNotes, null, 2), "utf8");
   return safeNotes;
+}
+
+async function readUsageStats() {
+  const file = usageStatsPath();
+  try {
+    const raw = await fs.readFile(file, "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeUsageStats(stats) {
+  const safeStats = stats && typeof stats === "object" ? stats : {};
+  await fs.mkdir(app.getPath("userData"), { recursive: true });
+  await fs.writeFile(usageStatsPath(), JSON.stringify(safeStats, null, 2), "utf8");
+  return safeStats;
+}
+
+function getExecutableName(targetPath) {
+  if (!targetPath || typeof targetPath !== "string") return "";
+  if (!/\.exe$/i.test(targetPath)) return "";
+  return path.basename(targetPath);
+}
+
+function isProcessRunning(imageName) {
+  if (!imageName || process.platform !== "win32") return Promise.resolve(false);
+  return new Promise((resolve) => {
+    execFile("tasklist", ["/FI", `IMAGENAME eq ${imageName}`, "/FO", "CSV", "/NH"], { windowsHide: true }, (error, stdout) => {
+      if (error) {
+        resolve(false);
+        return;
+      }
+      resolve(stdout.toLowerCase().includes(imageName.toLowerCase()));
+    });
+  });
+}
+
+async function finishUsageSession(tracker, endedAt = new Date()) {
+  if (!tracker || tracker.finished) return;
+  tracker.finished = true;
+  if (tracker.timer) clearInterval(tracker.timer);
+  activeUsageTrackers.delete(tracker.itemId);
+
+  const durationSeconds = Math.max(1, Math.round((endedAt.getTime() - tracker.startedAt.getTime()) / 1000));
+  const stats = await readUsageStats();
+  const previous = stats[tracker.itemId] || {
+    itemId: tracker.itemId,
+    name: tracker.name,
+    totalSeconds: 0,
+    sessions: 0,
+  };
+  stats[tracker.itemId] = {
+    ...previous,
+    itemId: tracker.itemId,
+    name: tracker.name || previous.name,
+    totalSeconds: Number(previous.totalSeconds || 0) + durationSeconds,
+    sessions: Number(previous.sessions || 0) + 1,
+    lastStartedAt: tracker.startedAt.toISOString(),
+    lastEndedAt: endedAt.toISOString(),
+    lastDurationSeconds: durationSeconds,
+  };
+  await writeUsageStats(stats);
+}
+
+function startUsageTracking(targetPath, metadata = {}) {
+  const imageName = getExecutableName(targetPath);
+  const itemId = metadata?.itemId || targetPath;
+  if (!imageName || !itemId || activeUsageTrackers.has(itemId)) return;
+
+  const tracker = {
+    itemId,
+    name: metadata?.name || imageName,
+    imageName,
+    startedAt: new Date(),
+    timer: null,
+    checksWithoutProcess: 0,
+    finished: false,
+  };
+  activeUsageTrackers.set(itemId, tracker);
+
+  const poll = async () => {
+    const running = await isProcessRunning(imageName);
+    if (running) {
+      tracker.checksWithoutProcess = 0;
+      return;
+    }
+    tracker.checksWithoutProcess += 1;
+    if (tracker.checksWithoutProcess >= 2) {
+      await finishUsageSession(tracker);
+    }
+  };
+
+  setTimeout(poll, 3000);
+  tracker.timer = setInterval(poll, 10000);
 }
 
 async function getSystemSnapshot() {
@@ -865,6 +967,7 @@ ipcMain.handle("ai:clearMemory", async () => writeAiMemory({ messages: [], facts
 ipcMain.handle("notes:load", readNotes);
 ipcMain.handle("notes:save", (_event, notes) => writeNotes(notes));
 ipcMain.handle("system:snapshot", getSystemSnapshot);
+ipcMain.handle("usage:load", readUsageStats);
 
 ipcMain.handle("window:minimize", () => {
   mainWindow?.minimize();
@@ -896,7 +999,7 @@ ipcMain.handle("path:validate", async (_event, targetPath) => {
 
 ipcMain.handle("path:analyze", async (_event, targetPath) => analyzePath(targetPath));
 
-ipcMain.handle("path:open", async (_event, targetPath) => {
+ipcMain.handle("path:open", async (_event, targetPath, metadata = {}) => {
   if (!targetPath || typeof targetPath !== "string") {
     return { ok: false, message: "Ruta vacia" };
   }
@@ -908,9 +1011,11 @@ ipcMain.handle("path:open", async (_event, targetPath) => {
   if (!exists) return { ok: false, message: "La ruta no existe" };
   if (/steam\.exe$/i.test(targetPath.replaceAll("\\", "/"))) {
     await shell.openExternal("steam://open/main");
+    startUsageTracking(targetPath, metadata);
     return { ok: true };
   }
   const error = await shell.openPath(targetPath);
+  if (!error) startUsageTracking(targetPath, metadata);
   return error ? { ok: false, message: error } : { ok: true };
 });
 

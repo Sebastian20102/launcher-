@@ -46,6 +46,19 @@ export type SystemSnapshot = {
   capturedAt: string;
 };
 
+export type UsageStats = Record<
+  string,
+  {
+    itemId: string;
+    name: string;
+    totalSeconds: number;
+    sessions: number;
+    lastStartedAt?: string;
+    lastEndedAt?: string;
+    lastDurationSeconds?: number;
+  }
+>;
+
 declare global {
   interface Window {
     nexus?: {
@@ -53,7 +66,7 @@ declare global {
       saveLibrary: (items: LibraryItem[]) => Promise<LibraryItem[]>;
       validatePath: (targetPath: string) => Promise<boolean>;
       analyzePath: (targetPath: string) => Promise<PathAnalysis | null>;
-      openPath: (targetPath: string) => Promise<NativeResult>;
+      openPath: (targetPath: string, metadata?: { itemId?: string; name?: string }) => Promise<NativeResult>;
       revealPath: (targetPath: string) => Promise<NativeResult>;
       pickExecutable: () => Promise<string | null>;
       pickAnyFile: () => Promise<string | null>;
@@ -64,6 +77,7 @@ declare global {
       loadNotes: () => Promise<NexusNote[]>;
       saveNotes: (notes: NexusNote[]) => Promise<NexusNote[]>;
       getSystemSnapshot: () => Promise<SystemSnapshot>;
+      loadUsageStats: () => Promise<UsageStats>;
       minimizeWindow: () => Promise<void>;
       maximizeWindow: () => Promise<void>;
       closeWindow: () => Promise<void>;
