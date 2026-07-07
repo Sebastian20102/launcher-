@@ -91,6 +91,21 @@ body {
   -webkit-app-region: no-drag;
 }
 
+.nexus-fluid-resize {
+  --nexus-glass: 0.62;
+}
+
+.nexus-fluid-resize header,
+.nexus-fluid-resize footer {
+  background-color: rgb(255 255 255 / calc(var(--nexus-glass) * 0.085));
+}
+
+.nexus-fluid-resize aside,
+.nexus-fluid-resize [data-nexus-surface="toolbar"],
+.nexus-fluid-resize [data-nexus-surface="compact-launch"] {
+  background-color: rgb(255 255 255 / calc(var(--nexus-glass) * 0.07));
+}
+
 .nexus-logo-track {
   animation: nexus-logo-scroll 24s linear infinite;
 }

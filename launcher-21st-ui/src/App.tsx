@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type UIEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type UIEvent } from "react";
 import {
   Activity,
   AppWindow,
@@ -85,7 +85,8 @@ import { cn } from "@/lib/utils";
 import type { NexusNote, SystemSnapshot } from "@/types/electron";
 
 const filters = ["Todo", "Juego", "Programa", "Proyecto", "Sistema", "Archivo"];
-const launcherBackgroundStorageKey = "nexus-launcher-background-preview";
+const launcherAppearanceStorageKey = "nexus-launcher-appearance-preview";
+const legacyLauncherBackgroundStorageKey = "nexus-launcher-background-preview";
 const notesStorageKey = "nexus-launcher-notes-preview";
 const appleEase = [0.22, 1, 0.36, 1] as const;
 const appleSpring = {
@@ -104,6 +105,13 @@ type LauncherBackground = {
   blur: number;
   dim: number;
   fit: "cover" | "contain";
+};
+
+type LauncherAppearance = {
+  background: LauncherBackground;
+  density: "comfort" | "compact" | "focus";
+  glass: number;
+  savedPresets: LauncherBackground[];
 };
 
 type Screen = "library" | "copilot" | "notes" | "system" | "news";
@@ -149,6 +157,13 @@ const backgroundPresets: LauncherBackground[] = [
   },
 ];
 
+const defaultLauncherAppearance: LauncherAppearance = {
+  background: defaultLauncherBackground,
+  density: "comfort",
+  glass: 0.62,
+  savedPresets: [],
+};
+
 function App() {
   const [items, setItems] = useState<LibraryItem[]>(seedLibrary);
   const [query, setQuery] = useState("");
@@ -159,7 +174,7 @@ function App() {
   const [notice, setNotice] = useState("Listo para lanzar");
   const [actionStatus, setActionStatus] = useState<ActionStatus>("idle");
   const [screen, setScreen] = useState<Screen>("library");
-  const [launcherBackground, setLauncherBackground] = useState<LauncherBackground>(defaultLauncherBackground);
+  const [launcherAppearance, setLauncherAppearance] = useState<LauncherAppearance>(defaultLauncherAppearance);
   const [notes, setNotes] = useState<NexusNote[]>([]);
   const [systemSnapshot, setSystemSnapshot] = useState<SystemSnapshot | null>(null);
 
@@ -173,19 +188,34 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(launcherBackgroundStorageKey);
-    if (!stored) return;
+    const stored = window.localStorage.getItem(launcherAppearanceStorageKey);
+    const legacyStored = window.localStorage.getItem(legacyLauncherBackgroundStorageKey);
+    if (!stored && !legacyStored) return;
     try {
-      const parsed = JSON.parse(stored) as LauncherBackground;
-      setLauncherBackground({ ...defaultLauncherBackground, ...parsed });
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<LauncherAppearance>;
+        setLauncherAppearance({
+          ...defaultLauncherAppearance,
+          ...parsed,
+          background: { ...defaultLauncherBackground, ...parsed.background },
+          savedPresets: Array.isArray(parsed.savedPresets) ? parsed.savedPresets : [],
+        });
+        return;
+      }
+      const parsedLegacy = JSON.parse(legacyStored || "{}") as LauncherBackground;
+      setLauncherAppearance({
+        ...defaultLauncherAppearance,
+        background: { ...defaultLauncherBackground, ...parsedLegacy },
+      });
     } catch {
-      window.localStorage.removeItem(launcherBackgroundStorageKey);
+      window.localStorage.removeItem(launcherAppearanceStorageKey);
+      window.localStorage.removeItem(legacyLauncherBackgroundStorageKey);
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(launcherBackgroundStorageKey, JSON.stringify(launcherBackground));
-  }, [launcherBackground]);
+    window.localStorage.setItem(launcherAppearanceStorageKey, JSON.stringify(launcherAppearance));
+  }, [launcherAppearance]);
 
   useEffect(() => {
     if (window.nexus?.loadNotes) {
@@ -235,6 +265,7 @@ function App() {
 
   const selected =
     items.find((item) => item.id === selectedId) ?? filteredItems[0] ?? items[0];
+  const launcherBackground = launcherAppearance.background;
 
   async function updateItems(nextItems: LibraryItem[], message: string) {
     setItems(nextItems);
@@ -480,6 +511,7 @@ function App() {
     <TooltipProvider>
       <motion.main
         className="relative h-screen overflow-hidden bg-black text-foreground"
+        style={{ "--nexus-glass": launcherAppearance.glass } as CSSProperties}
         initial={{ opacity: 0, filter: "blur(8px)" }}
         animate={{ opacity: 1, filter: "blur(0px)" }}
         transition={{ duration: 0.32, ease: appleEase }}
@@ -583,16 +615,16 @@ function App() {
             </div>
           </header>
           <CustomizationDialog
-            background={launcherBackground}
+            appearance={launcherAppearance}
             open={customizationOpen}
             onOpenChange={setCustomizationOpen}
-            onChange={setLauncherBackground}
+            onChange={setLauncherAppearance}
           />
 
           <section className="grid min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
             <div className="min-h-0 min-w-0 border-r border-white/10 bg-black/10">
               <Tabs value={filter} onValueChange={setFilter} className="flex h-full min-h-0 flex-col">
-                <div className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-white/[0.025] px-4 py-3 backdrop-blur-xl xl:flex-row xl:items-center xl:justify-between xl:px-6 xl:py-4">
+                <div data-nexus-surface="toolbar" className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-white/[0.025] px-4 py-3 backdrop-blur-xl xl:flex-row xl:items-center xl:justify-between xl:px-6 xl:py-4">
                   <div className="min-w-0 overflow-x-auto">
                   <TabsList className="w-max">
                     {filters.map((entry) => (
@@ -638,6 +670,7 @@ function App() {
                     <VirtualizedLibraryGrid
                       items={filteredItems}
                       selectedId={selected?.id ?? ""}
+                      density={launcherAppearance.density}
                       onSelect={setSelectedId}
                       onFavorite={toggleFavorite}
                     />
@@ -807,15 +840,20 @@ function LauncherCard({
   item,
   index,
   active,
+  density,
   onSelect,
   onFavorite,
 }: {
   item: LibraryItem;
   index: number;
   active: boolean;
+  density: LauncherAppearance["density"];
   onSelect: () => void;
   onFavorite: () => void;
 }) {
+  const isCompact = density === "compact";
+  const isFocus = density === "focus";
+
   return (
     <motion.button
       initial={{ opacity: 0, y: 10 }}
@@ -829,6 +867,8 @@ function LauncherCard({
         "group relative h-full w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-left shadow-[0_18px_56px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.055)] backdrop-blur-xl transition-[background,border-color,box-shadow] duration-200 ease-out will-change-transform",
         "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.12),transparent_42%)] before:opacity-0 before:transition-opacity before:duration-200 hover:before:opacity-100",
         active && "border-white/35 bg-white/[0.10] shadow-[0_22px_70px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.09)]",
+        isCompact && "p-2.5",
+        isFocus && "p-4",
       )}
     >
       <motion.div
@@ -838,8 +878,12 @@ function LauncherCard({
         animate={{ opacity: active ? 0.8 : 0.28, scaleX: active ? 1 : 0.72 }}
         transition={{ duration: 0.34, ease: appleEase }}
       />
-      <div className="relative z-10 mb-4 flex items-start justify-between gap-3">
-        <AppIcon item={item} className="size-11 shrink-0 sm:size-12 xl:size-10 2xl:size-11" iconClassName="size-5" />
+      <div className={cn("relative z-10 flex items-start justify-between gap-3", isCompact ? "mb-3" : "mb-4")}>
+        <AppIcon
+          item={item}
+          className={cn("shrink-0", isCompact ? "size-10" : isFocus ? "size-14" : "size-11 sm:size-12 xl:size-10 2xl:size-11")}
+          iconClassName={cn(isFocus ? "size-6" : "size-5")}
+        />
         <button
           type="button"
           onClick={(event) => {
@@ -861,10 +905,10 @@ function LauncherCard({
         </Badge>
         <span className="truncate text-xs text-muted-foreground">{item.type}</span>
       </div>
-      <h3 className="relative z-10 line-clamp-2 text-base font-semibold leading-5 tracking-normal text-white xl:text-[15px] 2xl:text-base">
+      <h3 className={cn("relative z-10 line-clamp-2 font-semibold tracking-normal text-white", isCompact ? "text-sm leading-5" : isFocus ? "text-lg leading-6" : "text-base leading-5 xl:text-[15px] 2xl:text-base")}>
         {item.name}
       </h3>
-      <p className="relative z-10 mt-2 line-clamp-1 text-xs leading-5 text-muted-foreground 2xl:text-sm">
+      <p className={cn("relative z-10 line-clamp-1 text-muted-foreground", isCompact ? "mt-1 text-[11px] leading-4" : "mt-2 text-xs leading-5 2xl:text-sm")}>
         {item.version ? `Version ${item.version}` : item.size ? `Tamano: ${item.size}` : item.description}
       </p>
     </motion.button>
@@ -874,11 +918,13 @@ function LauncherCard({
 function VirtualizedLibraryGrid({
   items,
   selectedId,
+  density,
   onSelect,
   onFavorite,
 }: {
   items: LibraryItem[];
   selectedId: string;
+  density: LauncherAppearance["density"];
   onSelect: (id: string) => void;
   onFavorite: (id: string) => void;
 }) {
@@ -916,17 +962,44 @@ function VirtualizedLibraryGrid({
   const metrics = useMemo(() => {
     const paddingX = viewport.width >= 768 ? 20 : 16;
     const paddingY = viewport.width >= 768 ? 20 : 16;
-    const gap = 12;
+    const gap = density === "compact" ? 10 : density === "focus" ? 14 : 12;
     const availableWidth = Math.max(viewport.width - paddingX * 2, 1);
     const columns =
-      availableWidth >= 1240
-        ? 4
-        : availableWidth >= 760
+      density === "focus"
+        ? availableWidth >= 1080
           ? 3
-          : availableWidth >= 520
+          : availableWidth >= 620
             ? 2
-            : 1;
-    const cardHeight = viewport.width >= 1280 ? 150 : viewport.width >= 640 ? 156 : 148;
+            : 1
+        : density === "compact"
+          ? availableWidth >= 1120
+            ? 4
+            : availableWidth >= 720
+              ? 3
+              : availableWidth >= 500
+                ? 2
+                : 1
+          : availableWidth >= 1240
+            ? 4
+            : availableWidth >= 760
+              ? 3
+              : availableWidth >= 520
+                ? 2
+                : 1;
+    const cardHeight =
+      density === "compact"
+        ? viewport.width >= 640
+          ? 132
+          : 124
+        : density === "focus"
+          ? viewport.width >= 640
+            ? 178
+            : 164
+          : viewport.width >= 1280
+            ? 150
+            : viewport.width >= 640
+              ? 156
+              : 148;
     const columnWidth = (availableWidth - gap * (columns - 1)) / columns;
     const rowHeight = cardHeight + gap;
     const rowCount = Math.ceil(items.length / columns);
@@ -941,7 +1014,7 @@ function VirtualizedLibraryGrid({
       rowCount,
       totalHeight: paddingY * 2 + rowCount * cardHeight + Math.max(rowCount - 1, 0) * gap,
     };
-  }, [items.length, viewport.width]);
+  }, [density, items.length, viewport.width]);
 
   const visibleRange = useMemo(() => {
     const overscanRows = 4;
@@ -992,6 +1065,7 @@ function VirtualizedLibraryGrid({
                 item={item}
                 index={localIndex}
                 active={item.id === selectedId}
+                density={density}
                 onSelect={() => onSelect(item.id)}
                 onFavorite={() => onFavorite(item.id)}
               />
@@ -1024,6 +1098,7 @@ function CompactLaunchPanel({
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: appleEase }}
+      data-nexus-surface="compact-launch"
       className="mx-4 mt-4 max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_60px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:hidden"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1476,18 +1551,42 @@ function CopilotLauncherBackdrop({
 }
 
 function CustomizationDialog({
-  background,
+  appearance,
   open,
   onOpenChange,
   onChange,
 }: {
-  background: LauncherBackground;
+  appearance: LauncherAppearance;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onChange: (background: LauncherBackground) => void;
+  onChange: (appearance: LauncherAppearance) => void;
 }) {
+  const background = appearance.background;
+
+  function updateAppearance(partial: Partial<LauncherAppearance>) {
+    onChange({ ...appearance, ...partial });
+  }
+
   function updateBackground(partial: Partial<LauncherBackground>) {
-    onChange({ ...background, ...partial });
+    updateAppearance({ background: { ...background, ...partial } });
+  }
+
+  function setBackground(nextBackground: LauncherBackground) {
+    updateAppearance({ background: nextBackground });
+  }
+
+  function saveCurrentPreset() {
+    const presetName = `${background.name || "Preset"} ${appearance.savedPresets.length + 1}`;
+    const nextPreset = { ...background, name: presetName };
+    updateAppearance({
+      savedPresets: [nextPreset, ...appearance.savedPresets].slice(0, 8),
+    });
+  }
+
+  function deletePreset(presetName: string) {
+    updateAppearance({
+      savedPresets: appearance.savedPresets.filter((preset) => preset.name !== presetName),
+    });
   }
 
   function handleUrlChange(value: string) {
@@ -1584,7 +1683,7 @@ function CustomizationDialog({
                   <button
                     key={preset.name}
                     type="button"
-                    onClick={() => onChange(preset)}
+                    onClick={() => setBackground(preset)}
                     className={cn(
                       "group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] p-2 text-left transition-colors hover:bg-white/[0.075]",
                       background.name === preset.name && "border-white/35 bg-white/[0.10]",
@@ -1601,6 +1700,48 @@ function CustomizationDialog({
                   </button>
                 ))}
               </div>
+
+              <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Presets personales
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Guarda combinaciones de fondo, blur y lectura.
+                    </p>
+                  </div>
+                  <Button variant="secondary" onClick={saveCurrentPreset}>
+                    <Plus className="mr-2 size-4" />
+                    Guardar
+                  </Button>
+                </div>
+                {appearance.savedPresets.length ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {appearance.savedPresets.map((preset) => (
+                      <div key={preset.name} className="flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 p-2">
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() => setBackground(preset)}
+                        >
+                          <div className="truncate text-sm font-medium">{preset.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {Math.round(preset.opacity * 100)}% / blur {preset.blur}px
+                          </div>
+                        </button>
+                        <Button variant="secondary" size="icon" onClick={() => deletePreset(preset.name)}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-muted-foreground">
+                    Todavia no tienes presets guardados.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1615,7 +1756,7 @@ function CustomizationDialog({
               <Button
                 variant="secondary"
                 size="icon"
-                onClick={() => onChange(defaultLauncherBackground)}
+                onClick={() => setBackground(defaultLauncherBackground)}
               >
                 <RotateCcw className="size-4" />
               </Button>
@@ -1640,6 +1781,27 @@ function CustomizationDialog({
             <div className="space-y-5">
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Densidad
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    ["compact", "Compacto"],
+                    ["comfort", "Comodo"],
+                    ["focus", "Foco"],
+                  ] as const).map(([density, label]) => (
+                    <Button
+                      key={density}
+                      variant={appearance.density === density ? "default" : "secondary"}
+                      onClick={() => updateAppearance({ density })}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Claridad
                 </p>
                 <div className="grid grid-cols-3 gap-2">
@@ -1658,6 +1820,14 @@ function CustomizationDialog({
                   ))}
                 </div>
               </div>
+              <RangeControl
+                label="Glass"
+                value={appearance.glass}
+                min={0.25}
+                max={1}
+                step={0.01}
+                onChange={(value) => updateAppearance({ glass: value })}
+              />
               <RangeControl
                 label="Opacidad del fondo"
                 value={background.opacity}
