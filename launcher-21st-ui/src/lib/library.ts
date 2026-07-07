@@ -1,17 +1,20 @@
 import {
   Boxes,
   Code2,
+  FileText,
   Folder,
   Gamepad2,
+  Image,
   MonitorPlay,
   TerminalSquare,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 
 export type LibraryItem = {
   id: string;
   name: string;
-  type: "Juego" | "Programa" | "Proyecto" | "Sistema";
+  type: "Juego" | "Programa" | "Proyecto" | "Sistema" | "Archivo";
   vendor: string;
   status: "Listo" | "Actualizando" | "Sin revisar";
   location: string;
@@ -36,8 +39,11 @@ export const iconRegistry: Record<string, LucideIcon> = {
   code: Code2,
   folder: Folder,
   gamepad: Gamepad2,
+  image: Image,
   monitor: MonitorPlay,
   terminal: TerminalSquare,
+  text: FileText,
+  video: Video,
 };
 
 export const fallbackIcon = "gamepad";
@@ -136,6 +142,32 @@ export function createItemFromPath(targetPath: string, type: LibraryItem["type"]
   const name = rawName.replace(/\.(exe|lnk|bat|cmd)$/i, "");
   const isProject = type === "Proyecto";
   const isSystem = type === "Sistema";
+  const extension = rawName.split(".").pop()?.toLowerCase() ?? "";
+  const isImage = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"].includes(extension);
+  const isVideo = ["mp4", "webm", "mov", "mkv", "avi"].includes(extension);
+  const isText = ["txt", "md", "json", "csv", "log", "xml", "yml", "yaml"].includes(extension);
+  const inferredIcon = isProject
+    ? "folder"
+    : isSystem
+      ? "terminal"
+      : isImage
+        ? "image"
+        : isVideo
+          ? "video"
+          : isText
+            ? "text"
+            : "gamepad";
+  const inferredDescription = isProject
+    ? "Carpeta o proyecto agregado manualmente."
+    : isImage
+      ? "Imagen local agregada a la biblioteca."
+      : isVideo
+        ? "Video local agregado a la biblioteca."
+        : isText
+          ? "Archivo de texto o datos agregado a la biblioteca."
+          : type === "Archivo"
+            ? "Archivo local agregado manualmente."
+            : "Programa o juego agregado manualmente.";
   return {
     id: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
     name,
@@ -144,12 +176,10 @@ export function createItemFromPath(targetPath: string, type: LibraryItem["type"]
     status: "Sin revisar",
     location: targetPath,
     lastUsed: "Nuevo",
-    playtime: "0 h",
-    description: isProject
-      ? "Carpeta o proyecto agregado manualmente."
-      : "Programa o juego agregado manualmente.",
+    playtime: "Sin seguimiento",
+    description: inferredDescription,
     accent: "bg-white/10 text-white",
-    icon: isProject ? "folder" : isSystem ? "terminal" : "gamepad",
+    icon: inferredIcon,
     favorite: false,
   };
 }

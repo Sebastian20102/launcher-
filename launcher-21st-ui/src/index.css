@@ -99,6 +99,32 @@ body {
   animation-play-state: paused;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .nexus-fluid-resize,
+  .nexus-fluid-resize header,
+  .nexus-fluid-resize section,
+  .nexus-fluid-resize footer,
+  .nexus-fluid-resize [role="tablist"],
+  .nexus-fluid-resize button,
+  .nexus-fluid-resize input {
+    transition-duration: 180ms;
+    transition-property:
+      background-color,
+      border-color,
+      box-shadow,
+      color,
+      opacity,
+      transform;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexus-logo-track {
+    animation: none;
+  }
+}
+
 @keyframes nexus-logo-scroll {
   from {
     transform: translateX(0);

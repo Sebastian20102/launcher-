@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType, type UIEvent } from "react";
 import {
   Activity,
   AppWindow,
@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   ChevronRight,
   CommandIcon,
+  Cpu,
   Download,
+  FileText,
   Folder,
   HardDrive,
   ImageIcon,
@@ -15,14 +17,17 @@ import {
   Maximize2,
   Minimize2,
   MoreHorizontal,
+  Newspaper,
   Palette,
   Play,
   Plus,
   RotateCcw,
+  Rss,
   Search,
   Settings,
   Sparkles,
   Star,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -68,28 +73,28 @@ import {
   seedLibrary,
   type LibraryItem,
 } from "@/lib/library";
-import { MotionLab } from "@/components/MotionLab";
 import {
   FocusDepthCard,
-  OdysseyBackdrop,
   OdysseyStatus,
   type ActionStatus,
 } from "@/components/OdysseyFocus";
 import { AppIcon } from "@/components/AppIcon";
 import { CopilotChat } from "@/components/CopilotChat";
-import { UpgradeBanner } from "@/components/UpgradeBanner";
 import { isDesktop, loadNativeLibrary, saveNativeLibrary } from "@/lib/native";
 import { cn } from "@/lib/utils";
+import type { NexusNote, SystemSnapshot } from "@/types/electron";
 
-const filters = ["Todo", "Juego", "Programa", "Proyecto", "Sistema"];
+const filters = ["Todo", "Juego", "Programa", "Proyecto", "Sistema", "Archivo"];
 const launcherBackgroundStorageKey = "nexus-launcher-background-preview";
+const notesStorageKey = "nexus-launcher-notes-preview";
 const appleEase = [0.22, 1, 0.36, 1] as const;
 const appleSpring = {
   type: "spring",
-  stiffness: 320,
-  damping: 34,
+  stiffness: 360,
+  damping: 38,
   mass: 0.82,
 } as const;
+type NexusIcon = ComponentType<{ className?: string }>;
 
 type LauncherBackground = {
   url: string;
@@ -100,6 +105,8 @@ type LauncherBackground = {
   dim: number;
   fit: "cover" | "contain";
 };
+
+type Screen = "library" | "copilot" | "notes" | "system" | "news";
 
 const defaultLauncherBackground: LauncherBackground = {
   url: "",
@@ -151,8 +158,10 @@ function App() {
   const [customizationOpen, setCustomizationOpen] = useState(false);
   const [notice, setNotice] = useState("Listo para lanzar");
   const [actionStatus, setActionStatus] = useState<ActionStatus>("idle");
-  const [screen, setScreen] = useState<"library" | "motion" | "copilot" | "identity">("library");
+  const [screen, setScreen] = useState<Screen>("library");
   const [launcherBackground, setLauncherBackground] = useState<LauncherBackground>(defaultLauncherBackground);
+  const [notes, setNotes] = useState<NexusNote[]>([]);
+  const [systemSnapshot, setSystemSnapshot] = useState<SystemSnapshot | null>(null);
 
   useEffect(() => {
     loadNativeLibrary(seedLibrary)
@@ -177,6 +186,42 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(launcherBackgroundStorageKey, JSON.stringify(launcherBackground));
   }, [launcherBackground]);
+
+  useEffect(() => {
+    if (window.nexus?.loadNotes) {
+      window.nexus.loadNotes().then(setNotes).catch(() => setNotice("No pude cargar las notas"));
+      return;
+    }
+    try {
+      const stored = window.localStorage.getItem(notesStorageKey);
+      setNotes(stored ? JSON.parse(stored) : []);
+    } catch {
+      setNotes([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (window.nexus?.getSystemSnapshot) {
+      window.nexus.getSystemSnapshot().then(setSystemSnapshot).catch(() => setNotice("No pude analizar la PC"));
+      return;
+    }
+    setSystemSnapshot({
+      hostname: "Preview",
+      platform: navigator.platform || "browser",
+      release: "Navegador",
+      arch: "No disponible",
+      uptimeSeconds: 0,
+      cpuModel: "Disponible en escritorio",
+      cpuCores: navigator.hardwareConcurrency || 0,
+      totalMemory: 0,
+      freeMemory: 0,
+      usedMemory: 0,
+      rootDisk: null,
+      homeDir: "Disponible en escritorio",
+      appDataDir: "Disponible en escritorio",
+      capturedAt: new Date().toISOString(),
+    });
+  }, []);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -203,7 +248,7 @@ function App() {
     window.setTimeout(() => setActionStatus("idle"), 1800);
   }
 
-  async function addFromPicker(kind: "Programa" | "Proyecto") {
+  async function addFromPicker(kind: "Programa" | "Proyecto" | "Archivo") {
     if (!window.nexus) {
       setNotice("La seleccion nativa funciona al abrir con npm run desktop");
       return;
@@ -211,6 +256,8 @@ function App() {
     const targetPath =
       kind === "Proyecto"
         ? await window.nexus.pickFolder()
+        : kind === "Archivo"
+          ? await window.nexus.pickAnyFile()
         : await window.nexus.pickExecutable();
     if (!targetPath) return;
     setActionStatus("importing");
@@ -268,36 +315,120 @@ function App() {
     await updateItems(nextItems, "Favoritos actualizados");
   }
 
-  if (screen === "motion") {
+  async function persistNotes(nextNotes: NexusNote[], message = "Notas actualizadas") {
+    const sortedNotes = [...nextNotes].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt.localeCompare(a.updatedAt));
+    setNotes(sortedNotes);
+    if (window.nexus?.saveNotes) {
+      await window.nexus.saveNotes(sortedNotes);
+    } else {
+      window.localStorage.setItem(notesStorageKey, JSON.stringify(sortedNotes));
+    }
+    setNotice(message);
+  }
+
+  async function createNote(linkedItemId = selected?.id ?? "") {
+    const now = new Date().toISOString();
+    const nextNote: NexusNote = {
+      id: crypto.randomUUID(),
+      title: linkedItemId && selected ? `Nota sobre ${selected.name}` : "Nueva nota",
+      body: "",
+      linkedItemId,
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await persistNotes([nextNote, ...notes], "Nota creada");
+    setScreen("notes");
+  }
+
+  async function updateNote(noteId: string, patch: Partial<NexusNote>) {
+    const now = new Date().toISOString();
+    await persistNotes(notes.map((note) => note.id === noteId ? { ...note, ...patch, updatedAt: now } : note), "Nota guardada");
+  }
+
+  async function deleteNote(noteId: string) {
+    await persistNotes(notes.filter((note) => note.id !== noteId), "Nota eliminada");
+  }
+
+  async function refreshSystemSnapshot() {
+    if (!window.nexus?.getSystemSnapshot) {
+      setNotice("Analisis completo disponible en la app de escritorio");
+      return;
+    }
+    const snapshot = await window.nexus.getSystemSnapshot();
+    setSystemSnapshot(snapshot);
+    setNotice("Analisis de PC actualizado");
+  }
+
+  if (screen === "notes") {
     return (
       <TooltipProvider>
-        <main className="relative h-screen overflow-hidden bg-background text-foreground">
-          <OdysseyBackdrop intensity={actionStatus === "idle" ? "calm" : "active"} />
-          <header className={cn("relative z-10 flex h-[72px] items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
-            <div className="flex items-center gap-4">
-              <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
-                <Sparkles className="size-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                  Nexus launcher
-                </p>
-                <h1 className="text-xl font-semibold tracking-normal">
-                  Motion Lab
-                </h1>
-              </div>
-            </div>
-            <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
-              <Button variant="secondary" onClick={() => setScreen("library")}>
-                Volver a biblioteca
-              </Button>
-              <WindowControls />
-            </div>
-          </header>
-          <div className="relative z-10">
-            <MotionLab items={items} />
-          </div>
-        </main>
+        <motion.main
+          className="relative h-screen overflow-hidden bg-black text-foreground"
+          initial={{ opacity: 0, filter: "blur(8px)" }}
+          animate={{ opacity: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.32, ease: appleEase }}
+        >
+          <CopilotLauncherBackdrop background={launcherBackground} />
+          <PageHeader
+            eyebrow="Nexus workspace"
+            title="Notas"
+            icon={FileText}
+            onBack={() => setScreen("library")}
+          />
+          <NotesWorkspace
+            items={items}
+            notes={notes}
+            onCreate={() => createNote()}
+            onCreateLinked={() => createNote(selected?.id ?? "")}
+            onUpdate={updateNote}
+            onDelete={deleteNote}
+          />
+        </motion.main>
+      </TooltipProvider>
+    );
+  }
+
+  if (screen === "system") {
+    return (
+      <TooltipProvider>
+        <motion.main
+          className="relative h-screen overflow-hidden bg-black text-foreground"
+          initial={{ opacity: 0, filter: "blur(8px)" }}
+          animate={{ opacity: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.32, ease: appleEase }}
+        >
+          <CopilotLauncherBackdrop background={launcherBackground} />
+          <PageHeader
+            eyebrow="Nexus diagnostics"
+            title="Analisis de PC"
+            icon={Cpu}
+            onBack={() => setScreen("library")}
+          />
+          <SystemAnalysis snapshot={systemSnapshot} onRefresh={refreshSystemSnapshot} />
+        </motion.main>
+      </TooltipProvider>
+    );
+  }
+
+  if (screen === "news") {
+    return (
+      <TooltipProvider>
+        <motion.main
+          className="relative h-screen overflow-hidden bg-black text-foreground"
+          initial={{ opacity: 0, filter: "blur(8px)" }}
+          animate={{ opacity: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.32, ease: appleEase }}
+        >
+          <CopilotLauncherBackdrop background={launcherBackground} />
+          <PageHeader
+            eyebrow="Nexus signals"
+            title="Intereses y noticias"
+            icon={Newspaper}
+            onBack={() => setScreen("library")}
+          />
+          <NewsInterestPreview items={items} />
+        </motion.main>
       </TooltipProvider>
     );
   }
@@ -305,7 +436,12 @@ function App() {
   if (screen === "copilot") {
     return (
       <TooltipProvider>
-        <main className="relative h-screen overflow-hidden bg-background text-foreground">
+        <motion.main
+          className="relative h-screen overflow-hidden bg-background text-foreground"
+          initial={{ opacity: 0, filter: "blur(8px)" }}
+          animate={{ opacity: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.32, ease: appleEase }}
+        >
           <header className={cn("relative z-10 flex h-[72px] items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
             <div className="flex items-center gap-4">
               <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
@@ -335,65 +471,37 @@ function App() {
               onSelectItem={setSelectedId}
             />
           </section>
-        </main>
-      </TooltipProvider>
-    );
-  }
-
-  if (screen === "identity") {
-    return (
-      <TooltipProvider>
-        <main className="relative h-screen overflow-hidden bg-background text-foreground">
-          <OdysseyBackdrop intensity="calm" />
-          <header className={cn("relative z-10 flex h-[72px] items-center justify-between border-b border-border bg-card/75 px-6 backdrop-blur", isDesktop() && "app-drag")}>
-            <div className="flex items-center gap-4">
-              <div className="grid size-11 place-items-center rounded-md border border-border bg-secondary">
-                <Sparkles className="size-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                  Nexus Core
-                </p>
-                <h1 className="text-xl font-semibold tracking-normal">
-                  Laboratorio de identidad
-                </h1>
-              </div>
-            </div>
-            <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
-              <Button variant="secondary" onClick={() => setScreen("library")}>
-                <ArrowLeft className="mr-2 size-4" />
-                Biblioteca
-              </Button>
-              <WindowControls />
-            </div>
-          </header>
-          <IdentityPreview items={items} />
-        </main>
+        </motion.main>
       </TooltipProvider>
     );
   }
 
   return (
     <TooltipProvider>
-      <main className="relative h-screen overflow-hidden bg-black text-foreground">
+      <motion.main
+        className="relative h-screen overflow-hidden bg-black text-foreground"
+        initial={{ opacity: 0, filter: "blur(8px)" }}
+        animate={{ opacity: 1, filter: "blur(0px)" }}
+        transition={{ duration: 0.32, ease: appleEase }}
+      >
         <CopilotLauncherBackdrop background={launcherBackground} />
-        <div className="relative z-10 grid h-screen grid-rows-[72px_minmax(0,1fr)_84px] overflow-hidden">
-          <header className={cn("flex items-center justify-between border-b border-white/10 bg-white/[0.055] px-6 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl", isDesktop() && "app-drag")}>
-            <div className="flex items-center gap-4">
-              <div className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[0.075] shadow-[0_16px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <div className="nexus-fluid-resize relative z-10 grid h-screen grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+          <header className={cn("flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.055] px-4 py-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl md:px-6", isDesktop() && "app-drag")}>
+            <div className="flex min-w-0 items-center gap-3 md:gap-4">
+              <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.075] shadow-[0_16px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] md:size-11">
                 <Layers3 className="size-5 text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                   Nexus launcher
                 </p>
-                <h1 className="text-xl font-semibold tracking-normal">
+                <h1 className="truncate text-lg font-semibold tracking-normal md:text-xl">
                   Biblioteca local
                 </h1>
               </div>
             </div>
 
-            <div className={cn("hidden w-[460px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] px-4 py-2.5 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl lg:flex", isDesktop() && "app-no-drag")}>
+            <div className={cn("order-3 flex w-full items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] px-4 py-2.5 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl lg:order-none lg:w-[420px]", isDesktop() && "app-no-drag")}>
               <Search className="size-4" />
               <input
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -406,14 +514,22 @@ function App() {
               </kbd>
             </div>
 
-            <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
-              <Button variant="secondary" onClick={() => setScreen("identity")}>
-                <Sparkles className="mr-2 size-4" />
-                Identidad
+            <div className={cn("flex max-w-full items-center gap-2 overflow-x-auto", isDesktop() && "app-no-drag")}>
+              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("notes")}>
+                <FileText className="mr-2 size-4" />
+                Notas
               </Button>
-              <Button variant="secondary" onClick={() => setScreen("motion")}>
+              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("system")}>
+                <Cpu className="mr-2 size-4" />
+                PC
+              </Button>
+              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("news")}>
+                <Newspaper className="mr-2 size-4" />
+                Noticias
+              </Button>
+              <Button variant="secondary" className="shrink-0 sm:hidden" onClick={() => setScreen("copilot")}>
                 <Sparkles className="mr-2 size-4" />
-                Motion Lab
+                Copilot
               </Button>
               <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
                 <DialogTrigger asChild>
@@ -453,7 +569,7 @@ function App() {
                   </Command>
                 </DialogContent>
               </Dialog>
-              <Button variant="secondary" onClick={() => setCustomizationOpen(true)}>
+              <Button variant="secondary" className="shrink-0" onClick={() => setCustomizationOpen(true)}>
                 <Palette className="mr-2 size-4" />
                 Personalizar
               </Button>
@@ -473,62 +589,68 @@ function App() {
             onChange={setLauncherBackground}
           />
 
-          <section className="grid min-h-0 overflow-hidden grid-cols-[minmax(0,1fr)_390px] gap-0 max-lg:grid-cols-1">
+          <section className="grid min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
             <div className="min-h-0 min-w-0 border-r border-white/10 bg-black/10">
               <Tabs value={filter} onValueChange={setFilter} className="flex h-full min-h-0 flex-col">
-                <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-white/[0.025] px-6 py-4 backdrop-blur-xl">
-                  <TabsList>
+                <div className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-white/[0.025] px-4 py-3 backdrop-blur-xl xl:flex-row xl:items-center xl:justify-between xl:px-6 xl:py-4">
+                  <div className="min-w-0 overflow-x-auto">
+                  <TabsList className="w-max">
                     {filters.map((entry) => (
                       <TabsTrigger key={entry} value={entry}>
                         {entry}
                       </TabsTrigger>
                     ))}
                   </TabsList>
-                  <div className="flex items-center gap-2">
-                    <Button variant="secondary" onClick={() => addFromPicker("Proyecto")}>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2 overflow-x-auto xl:justify-end">
+                    <Button variant="secondary" className="shrink-0" onClick={() => addFromPicker("Proyecto")}>
                       <Folder className="mr-2 size-4" />
                       Carpeta
                     </Button>
-                    <Button onClick={() => addFromPicker("Programa")}>
+                    <Button className="shrink-0" onClick={() => addFromPicker("Programa")}>
                       <Plus className="mr-2 size-4" />
                       Programa
+                    </Button>
+                    <Button variant="secondary" className="shrink-0" onClick={() => addFromPicker("Archivo")}>
+                      <FileText className="mr-2 size-4" />
+                      Archivo
                     </Button>
                   </div>
                 </div>
 
-                {filters.map((entry) => (
-                  <TabsContent
-                    key={entry}
-                    value={entry}
-                    className="m-0 min-h-0 flex-1 overflow-hidden"
-                  >
-                    <ScrollArea className="h-full">
-                      <motion.div layout className="grid gap-4 p-6 xl:grid-cols-2 2xl:grid-cols-3">
-                        <AnimatePresence mode="popLayout" initial={false}>
-                          {filteredItems.length ? (
-                            filteredItems.map((item, index) => (
-                              <LauncherCard
-                                key={item.id}
-                                item={item}
-                                index={index}
-                                active={item.id === selected?.id}
-                                onSelect={() => setSelectedId(item.id)}
-                                onFavorite={() => toggleFavorite(item.id)}
-                              />
-                            ))
-                          ) : (
-                            <EmptyLibraryState
-                              key="empty-library"
-                              hasQuery={Boolean(query.trim()) || filter !== "Todo"}
-                              onAddProgram={() => addFromPicker("Programa")}
-                              onAddFolder={() => addFromPicker("Proyecto")}
-                            />
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    </ScrollArea>
-                  </TabsContent>
-                ))}
+                {selected && (
+                  <CompactLaunchPanel
+                    item={selected}
+                    status={actionStatus}
+                    notice={notice}
+                    onOpen={openSelected}
+                    onReveal={revealSelected}
+                    onValidate={validateSelected}
+                  />
+                )}
+
+                <TabsContent
+                  key={filter}
+                  value={filter}
+                  className="m-0 min-h-0 flex-1 overflow-hidden"
+                >
+                  {filteredItems.length ? (
+                    <VirtualizedLibraryGrid
+                      items={filteredItems}
+                      selectedId={selected?.id ?? ""}
+                      onSelect={setSelectedId}
+                      onFavorite={toggleFavorite}
+                    />
+                  ) : (
+                    <div className="h-full overflow-hidden p-4 md:p-5">
+                      <EmptyLibraryState
+                        hasQuery={Boolean(query.trim()) || filter !== "Todo"}
+                        onAddProgram={() => addFromPicker("Programa")}
+                        onAddFolder={() => addFromPicker("Proyecto")}
+                      />
+                    </div>
+                  )}
+                </TabsContent>
               </Tabs>
             </div>
 
@@ -539,9 +661,9 @@ function App() {
                   <motion.div
                     key={selected.id}
                     className="p-6"
-                    initial={{ opacity: 0, x: 24, scale: 0.985, filter: "blur(10px)" }}
-                    animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, x: 18, scale: 0.985, filter: "blur(10px)" }}
+                    initial={{ opacity: 0, x: 18, scale: 0.99 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 12, scale: 0.99 }}
                     transition={{ duration: 0.38, ease: appleEase }}
                   >
                     <motion.div
@@ -564,6 +686,10 @@ function App() {
                           <Button variant="secondary" onClick={validateSelected} disabled={actionStatus === "validating"}>
                             <Download className="mr-2 size-4" />
                             {actionStatus === "validating" ? "Validando" : "Validar"}
+                          </Button>
+                          <Button variant="secondary" className="col-span-2" onClick={() => createNote(selected.id)}>
+                            <FileText className="mr-2 size-4" />
+                            Crear nota sobre este acceso
                           </Button>
                         </div>
 
@@ -605,9 +731,10 @@ function App() {
 
                       <div className="grid grid-cols-2 gap-3">
                         <Metric label="Estado" value={selected.status} />
-                        <Metric label="Tamano" value={selected.size ?? selected.playtime} />
+                        <Metric label="Tamano" value={selected.size || "No disponible"} />
                         <Metric label="Version" value={selected.version || "No disponible"} />
                         <Metric label="Origen" value={selected.vendor} />
+                        <Metric label="Uso" value="Sin seguimiento real" />
                         <Metric label="Fuente" value={selected.source || "Local"} />
                         <Metric label="Modificado" value={selected.fileModified || selected.lastUsed} />
                         <Metric label="AppID" value={selected.appId || "No aplica"} />
@@ -653,23 +780,25 @@ function App() {
             </aside>
           </section>
 
-          <footer className="flex min-h-0 items-center justify-between border-t border-white/10 bg-white/[0.055] px-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <footer className="flex min-h-0 flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-white/[0.055] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:px-6">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground md:text-sm">
               <HardDrive className="size-4" />
               {items.length} accesos indexados
             </div>
-            <AnimatedDock
-              items={items}
-              onSelect={setSelectedId}
-              onOpenCopilot={() => setScreen("copilot")}
-              selectedId={selected?.id ?? ""}
-            />
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="hidden sm:block">
+              <AnimatedDock
+                items={items}
+                onSelect={setSelectedId}
+                onOpenCopilot={() => setScreen("copilot")}
+                selectedId={selected?.id ?? ""}
+              />
+            </div>
+            <div className="hidden items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground lg:flex">
               Nexus Core Preview
             </div>
           </footer>
         </div>
-      </main>
+      </motion.main>
     </TooltipProvider>
   );
 }
@@ -689,38 +818,35 @@ function LauncherCard({
 }) {
   return (
     <motion.button
-      layout
-      initial={{ opacity: 0, y: 18, scale: 0.985, filter: "blur(8px)" }}
-      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-      exit={{ opacity: 0, y: 12, scale: 0.97, filter: "blur(8px)" }}
-      transition={{ ...appleSpring, delay: Math.min(index * 0.014, 0.16) }}
-      whileHover={{ y: -7, scale: 1.012 }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      transition={{ duration: 0.22, ease: appleEase, delay: Math.min(index * 0.006, 0.08) }}
+      whileHover={{ y: -4 }}
       whileTap={{ scale: 0.985 }}
       onClick={onSelect}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.055] p-4 text-left shadow-[0_20px_70px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition-[background,border-color,box-shadow] duration-300 ease-out will-change-transform",
-        "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.12),transparent_42%)] before:opacity-0 before:transition-opacity before:duration-300 hover:before:opacity-100",
-        active && "border-white/35 bg-white/[0.105] shadow-[0_26px_90px_rgba(0,0,0,0.30),0_0_0_1px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.10)]",
+        "group relative h-full w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-left shadow-[0_18px_56px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.055)] backdrop-blur-xl transition-[background,border-color,box-shadow] duration-200 ease-out will-change-transform",
+        "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.12),transparent_42%)] before:opacity-0 before:transition-opacity before:duration-200 hover:before:opacity-100",
+        active && "border-white/35 bg-white/[0.10] shadow-[0_22px_70px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.09)]",
       )}
     >
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-white/35"
+        className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/35"
         initial={false}
         animate={{ opacity: active ? 0.8 : 0.28, scaleX: active ? 1 : 0.72 }}
         transition={{ duration: 0.34, ease: appleEase }}
       />
-      <div className="relative z-10 mb-5 flex items-start justify-between">
-        <motion.div layoutId={`launcher-icon-${item.id}`}>
-          <AppIcon item={item} className="size-12" iconClassName="size-6" />
-        </motion.div>
+      <div className="relative z-10 mb-4 flex items-start justify-between gap-3">
+        <AppIcon item={item} className="size-11 shrink-0 sm:size-12 xl:size-10 2xl:size-11" iconClassName="size-5" />
         <button
           type="button"
           onClick={(event) => {
             event.stopPropagation();
             onFavorite();
           }}
-          className="grid size-8 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-white/10 hover:text-white"
+          className="grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-white/10 hover:text-white"
         >
           {item.favorite ? (
             <Star className="size-4 fill-current text-white" />
@@ -729,17 +855,212 @@ function LauncherCard({
           )}
         </button>
       </div>
-      <div className="relative z-10 mb-3 flex items-center gap-2">
+      <div className="relative z-10 mb-2 flex min-w-0 items-center gap-2">
         <Badge variant={item.status === "Listo" ? "default" : "secondary"}>
           {item.status}
         </Badge>
-        <span className="text-xs text-muted-foreground">{item.type}</span>
+        <span className="truncate text-xs text-muted-foreground">{item.type}</span>
       </div>
-      <h3 className="relative z-10 mb-1 text-lg font-semibold tracking-normal text-white">{item.name}</h3>
-      <p className="relative z-10 line-clamp-2 text-sm leading-6 text-muted-foreground">
-        {item.version ? `Version ${item.version}` : item.description}
+      <h3 className="relative z-10 line-clamp-2 text-base font-semibold leading-5 tracking-normal text-white xl:text-[15px] 2xl:text-base">
+        {item.name}
+      </h3>
+      <p className="relative z-10 mt-2 line-clamp-1 text-xs leading-5 text-muted-foreground 2xl:text-sm">
+        {item.version ? `Version ${item.version}` : item.size ? `Tamano: ${item.size}` : item.description}
       </p>
     </motion.button>
+  );
+}
+
+function VirtualizedLibraryGrid({
+  items,
+  selectedId,
+  onSelect,
+  onFavorite,
+}: {
+  items: LibraryItem[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onFavorite: (id: string) => void;
+}) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const [scrollTop, setScrollTop] = useState(0);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const element = viewportRef.current;
+    if (!element) return;
+
+    const updateViewport = () => {
+      setViewport({
+        width: element.clientWidth,
+        height: element.clientHeight,
+      });
+    };
+    updateViewport();
+
+    const observer = new ResizeObserver(updateViewport);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const element = viewportRef.current;
+    if (element) element.scrollTop = 0;
+    setScrollTop(0);
+  }, [items]);
+
+  const metrics = useMemo(() => {
+    const paddingX = viewport.width >= 768 ? 20 : 16;
+    const paddingY = viewport.width >= 768 ? 20 : 16;
+    const gap = 12;
+    const availableWidth = Math.max(viewport.width - paddingX * 2, 1);
+    const columns =
+      availableWidth >= 1240
+        ? 4
+        : availableWidth >= 760
+          ? 3
+          : availableWidth >= 520
+            ? 2
+            : 1;
+    const cardHeight = viewport.width >= 1280 ? 150 : viewport.width >= 640 ? 156 : 148;
+    const columnWidth = (availableWidth - gap * (columns - 1)) / columns;
+    const rowHeight = cardHeight + gap;
+    const rowCount = Math.ceil(items.length / columns);
+    return {
+      paddingX,
+      paddingY,
+      gap,
+      columns,
+      cardHeight,
+      columnWidth,
+      rowHeight,
+      rowCount,
+      totalHeight: paddingY * 2 + rowCount * cardHeight + Math.max(rowCount - 1, 0) * gap,
+    };
+  }, [items.length, viewport.width]);
+
+  const visibleRange = useMemo(() => {
+    const overscanRows = 4;
+    const startRow = Math.max(0, Math.floor((scrollTop - metrics.paddingY) / metrics.rowHeight) - overscanRows);
+    const endRow = Math.min(
+      metrics.rowCount - 1,
+      Math.ceil((scrollTop + viewport.height - metrics.paddingY) / metrics.rowHeight) + overscanRows,
+    );
+    const startIndex = startRow * metrics.columns;
+    const endIndex = Math.min(items.length, (endRow + 1) * metrics.columns);
+    return { startIndex, endIndex };
+  }, [items.length, metrics.columns, metrics.paddingY, metrics.rowCount, metrics.rowHeight, scrollTop, viewport.height]);
+
+  function handleScroll(event: UIEvent<HTMLDivElement>) {
+    const nextScrollTop = event.currentTarget.scrollTop;
+    if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
+    rafRef.current = window.requestAnimationFrame(() => setScrollTop(nextScrollTop));
+  }
+
+  const visibleItems = items.slice(visibleRange.startIndex, visibleRange.endIndex);
+
+  return (
+    <div
+      ref={viewportRef}
+      className="h-full overflow-y-auto overflow-x-hidden"
+      onScroll={handleScroll}
+    >
+      <div className="relative" style={{ height: metrics.totalHeight }}>
+        {visibleItems.map((item, localIndex) => {
+          const index = visibleRange.startIndex + localIndex;
+          const row = Math.floor(index / metrics.columns);
+          const column = index % metrics.columns;
+          const top = metrics.paddingY + row * metrics.rowHeight;
+          const left = metrics.paddingX + column * (metrics.columnWidth + metrics.gap);
+
+          return (
+            <div
+              key={item.id}
+              className="absolute"
+              style={{
+                top,
+                left,
+                width: metrics.columnWidth,
+                height: metrics.cardHeight,
+              }}
+            >
+              <LauncherCard
+                item={item}
+                index={localIndex}
+                active={item.id === selectedId}
+                onSelect={() => onSelect(item.id)}
+                onFavorite={() => onFavorite(item.id)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CompactLaunchPanel({
+  item,
+  status,
+  notice,
+  onOpen,
+  onReveal,
+  onValidate,
+}: {
+  item: LibraryItem;
+  status: ActionStatus;
+  notice: string;
+  onOpen: () => void;
+  onReveal: () => void;
+  onValidate: () => void;
+}) {
+  return (
+    <motion.div
+      key={item.id}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22, ease: appleEase }}
+      className="mx-4 mt-4 max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_60px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:hidden"
+    >
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <AppIcon item={item} className="size-12 shrink-0" iconClassName="size-6" />
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-2">
+              <Badge variant={item.status === "Listo" ? "default" : "secondary"}>
+                {item.status}
+              </Badge>
+              <span className="text-xs text-muted-foreground">{item.type}</span>
+            </div>
+            <h2 className="truncate text-base font-semibold text-white md:text-lg">
+              {item.name}
+            </h2>
+            <p className="truncate text-xs text-muted-foreground">
+              {status === "idle" ? item.description : notice}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid w-full min-w-0 max-w-full grid-cols-3 gap-2 overflow-hidden sm:grid-cols-[minmax(160px,1fr)_auto_auto] md:flex md:w-auto md:shrink-0">
+          <Button className="h-10 w-full min-w-0 px-2 sm:px-4" onClick={onOpen} disabled={status === "opening"} aria-label={status === "opening" ? "Abriendo" : "Abrir"}>
+            <Play className="size-4 sm:mr-2" />
+            <span className="hidden sm:inline">{status === "opening" ? "Abriendo" : "Abrir"}</span>
+          </Button>
+          <Button variant="secondary" className="h-10 w-full min-w-0 px-2 sm:px-4" onClick={onReveal} aria-label="Carpeta">
+            <Folder className="size-4 sm:mr-2" />
+            <span className="hidden sm:inline">Carpeta</span>
+          </Button>
+          <Button variant="secondary" className="h-10 w-full min-w-0 px-2 sm:px-4" onClick={onValidate} disabled={status === "validating"} aria-label={status === "validating" ? "Validando" : "Validar"}>
+            <Download className="size-4 sm:mr-2" />
+            <span className="hidden sm:inline">{status === "validating" ? "Validando" : "Validar"}</span>
+          </Button>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -787,6 +1108,312 @@ function EmptyLibraryState({
         )}
       </div>
     </motion.div>
+  );
+}
+
+function PageHeader({
+  eyebrow,
+  title,
+  icon: Icon,
+  onBack,
+}: {
+  eyebrow: string;
+  title: string;
+  icon: NexusIcon;
+  onBack: () => void;
+}) {
+  return (
+    <header className={cn("relative z-10 flex h-[72px] items-center justify-between border-b border-white/10 bg-white/[0.055] px-6 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl", isDesktop() && "app-drag")}>
+      <div className="flex items-center gap-4">
+        <div className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[0.075] shadow-[0_16px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <Icon className="size-5 text-white" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            {eyebrow}
+          </p>
+          <h1 className="text-xl font-semibold tracking-normal">{title}</h1>
+        </div>
+      </div>
+      <div className={cn("flex items-center gap-2", isDesktop() && "app-no-drag")}>
+        <Button variant="secondary" onClick={onBack}>
+          <ArrowLeft className="mr-2 size-4" />
+          Biblioteca
+        </Button>
+        <WindowControls />
+      </div>
+    </header>
+  );
+}
+
+function NotesWorkspace({
+  items,
+  notes,
+  onCreate,
+  onCreateLinked,
+  onUpdate,
+  onDelete,
+}: {
+  items: LibraryItem[];
+  notes: NexusNote[];
+  onCreate: () => void;
+  onCreateLinked: () => void;
+  onUpdate: (noteId: string, patch: Partial<NexusNote>) => void;
+  onDelete: (noteId: string) => void;
+}) {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+
+  return (
+    <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
+      <ScrollArea className="h-full">
+        <div className="mx-auto grid max-w-7xl gap-6 p-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Sistema de notas</p>
+            <h2 className="mt-2 text-2xl font-semibold">Ideas, bugs y tareas</h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Notas locales para organizar decisiones del launcher, recordar ajustes o documentar accesos.
+            </p>
+            <div className="mt-5 grid gap-3">
+              <Button onClick={onCreate}>
+                <Plus className="mr-2 size-4" />
+                Nueva nota
+              </Button>
+              <Button variant="secondary" onClick={onCreateLinked}>
+                <FileText className="mr-2 size-4" />
+                Nota del acceso seleccionado
+              </Button>
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <Metric label="Notas" value={String(notes.length)} />
+              <Metric label="Fijadas" value={String(notes.filter((note) => note.pinned).length)} />
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            {notes.length ? notes.map((note) => {
+              const linkedItem = note.linkedItemId ? itemById.get(note.linkedItemId) : null;
+              return (
+                <motion.article
+                  key={note.id}
+                  layout
+                  initial={{ opacity: 0, y: 16, filter: "blur(8px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl"
+                >
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <input
+                        value={note.title}
+                        onChange={(event) => onUpdate(note.id, { title: event.target.value })}
+                        className="w-full bg-transparent text-xl font-semibold outline-none"
+                      />
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>Actualizada {new Date(note.updatedAt).toLocaleString()}</span>
+                        {linkedItem && <Badge variant="secondary">{linkedItem.name}</Badge>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant={note.pinned ? "default" : "secondary"} size="icon" onClick={() => onUpdate(note.id, { pinned: !note.pinned })}>
+                        <Star className="size-4" />
+                      </Button>
+                      <Button variant="secondary" size="icon" onClick={() => onDelete(note.id)}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <textarea
+                    value={note.body}
+                    onChange={(event) => onUpdate(note.id, { body: event.target.value })}
+                    placeholder="Escribe una nota, decision, pendiente o bug..."
+                    className="min-h-40 w-full resize-y rounded-2xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-white outline-none placeholder:text-muted-foreground"
+                  />
+                </motion.article>
+              );
+            }) : (
+              <div className="grid min-h-[420px] place-items-center rounded-3xl border border-white/10 bg-white/[0.045] p-8 text-center">
+                <div>
+                  <FileText className="mx-auto mb-4 size-10 text-white/70" />
+                  <h2 className="text-2xl font-semibold">Todavia no hay notas</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">Crea la primera nota para empezar a organizar ideas del launcher.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </ScrollArea>
+    </section>
+  );
+}
+
+function formatBytes(value: number) {
+  if (!value) return "No disponible";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(unitIndex ? 1 : 0)} ${units[unitIndex]}`;
+}
+
+function formatDuration(seconds: number) {
+  if (!seconds) return "No disponible";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  return days ? `${days} d ${hours} h` : `${hours} h`;
+}
+
+function SystemAnalysis({
+  snapshot,
+  onRefresh,
+}: {
+  snapshot: SystemSnapshot | null;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
+      <ScrollArea className="h-full">
+        <div className="mx-auto max-w-7xl space-y-6 p-6">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Analisis local</p>
+                <h2 className="mt-2 text-3xl font-semibold">Estado real de esta PC</h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Primer modulo de diagnostico. Lee datos locales basicos del sistema sin subir informacion a internet.
+                </p>
+              </div>
+              <Button onClick={onRefresh}>
+                <RotateCcw className="mr-2 size-4" />
+                Actualizar
+              </Button>
+            </div>
+          </div>
+
+          {snapshot ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <Metric label="Equipo" value={snapshot.hostname} />
+              <Metric label="Sistema" value={`${snapshot.platform} ${snapshot.release}`} />
+              <Metric label="Arquitectura" value={snapshot.arch} />
+              <Metric label="Encendido" value={formatDuration(snapshot.uptimeSeconds)} />
+              <Metric label="CPU" value={snapshot.cpuModel} />
+              <Metric label="Nucleos" value={String(snapshot.cpuCores)} />
+              <Metric label="RAM usada" value={formatBytes(snapshot.usedMemory)} />
+              <Metric label="RAM total" value={formatBytes(snapshot.totalMemory)} />
+              <Metric label="Disco libre" value={formatBytes(snapshot.rootDisk?.free ?? 0)} />
+              <Metric label="Disco total" value={formatBytes(snapshot.rootDisk?.total ?? 0)} />
+              <Metric label="Home" value={snapshot.homeDir} />
+              <Metric label="AppData Nexus" value={snapshot.appDataDir} />
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-8 text-center text-muted-foreground">
+              Cargando analisis de PC...
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </section>
+  );
+}
+
+function NewsInterestPreview({ items }: { items: LibraryItem[] }) {
+  const interests = useMemo(() => {
+    const hasGames = items.some((item) => item.type === "Juego");
+    const hasProjects = items.some((item) => item.type === "Proyecto");
+    const hasPrograms = items.some((item) => item.type === "Programa");
+    const detected = [
+      hasGames && { label: "Gaming PC", source: "Steam, GOG, Battle.net, patch notes" },
+      hasProjects && { label: "Desarrollo", source: "GitHub, engines, frameworks" },
+      hasPrograms && { label: "Herramientas", source: "updates, changelogs, release notes" },
+      { label: "Hardware", source: "drivers, componentes, rendimiento" },
+    ].filter(Boolean) as { label: string; source: string }[];
+    return detected;
+  }, [items]);
+
+  const newsPreview = [
+    {
+      title: "Actualizaciones de tus launchers y tiendas",
+      detail: "RSS o fuentes oficiales para Steam, GOG, Battle.net y herramientas instaladas.",
+      status: "Fuente real",
+    },
+    {
+      title: "Cambios importantes para tus proyectos",
+      detail: "Noticias de engines, librerias y repos que coincidan con tus carpetas locales.",
+      status: "Filtrado local",
+    },
+    {
+      title: "Alertas de sistema y drivers",
+      detail: "Senales relacionadas con GPU, Windows, almacenamiento y rendimiento.",
+      status: "Opt-in",
+    },
+  ];
+
+  return (
+    <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
+      <ScrollArea className="h-full">
+        <div className="mx-auto grid max-w-7xl gap-6 p-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="space-y-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+              <div className="mb-5 grid size-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.075]">
+                <Rss className="size-5" />
+              </div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Noticias reales
+              </p>
+              <h2 className="mt-2 text-3xl font-semibold">Curadas por intereses</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                La IA local no necesita subir tus conversaciones. Puede guardar intereses en AppData y usarlos para filtrar fuentes reales configuradas por el usuario.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Intereses detectados
+              </p>
+              <div className="mt-4 space-y-3">
+                {interests.map((interest) => (
+                  <div key={interest.label} className="rounded-2xl border border-white/10 bg-black/24 p-4">
+                    <div className="font-semibold">{interest.label}</div>
+                    <div className="mt-1 text-xs leading-5 text-muted-foreground">{interest.source}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            {newsPreview.map((entry, index) => (
+              <motion.article
+                key={entry.title}
+                layout
+                initial={{ opacity: 0, y: 16, filter: "blur(8px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                transition={{ ...appleSpring, delay: index * 0.04 }}
+                className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <Badge variant="secondary">{entry.status}</Badge>
+                    <h3 className="mt-4 text-2xl font-semibold">{entry.title}</h3>
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                      {entry.detail}
+                    </p>
+                  </div>
+                  <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-black/25">
+                    <Newspaper className="size-5" />
+                  </div>
+                </div>
+              </motion.article>
+            ))}
+
+            <div className="rounded-3xl border border-white/10 bg-black/25 p-5 text-sm leading-6 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              Proxima fase: conectar RSS reales, cache local, fuentes por categoria y un filtro de IA local que explique por que una noticia aparece.
+            </div>
+          </div>
+        </div>
+      </ScrollArea>
+    </section>
   );
 }
 
@@ -1011,6 +1638,26 @@ function CustomizationDialog({
             </div>
 
             <div className="space-y-5">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Claridad
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Nitido", values: { opacity: 0.78, dim: 0.22, blur: 0 } },
+                    { label: "Glass", values: { opacity: 0.62, dim: 0.34, blur: 1 } },
+                    { label: "Foco", values: { opacity: 0.48, dim: 0.48, blur: 2 } },
+                  ].map((preset) => (
+                    <Button
+                      key={preset.label}
+                      variant="secondary"
+                      onClick={() => updateBackground(preset.values)}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <RangeControl
                 label="Opacidad del fondo"
                 value={background.opacity}
@@ -1090,208 +1737,6 @@ function RangeControl({
         className="h-2 w-full accent-white"
       />
     </label>
-  );
-}
-
-function IdentityPreview({ items }: { items: LibraryItem[] }) {
-  const featured = items.filter((item) => item.favorite).slice(0, 8);
-  const carouselItems = featured.length ? featured : items.slice(0, 8);
-
-  return (
-    <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
-      <ScrollArea className="h-full">
-        <div className="mx-auto max-w-7xl space-y-6 p-6">
-          <DynamicIdentityBanner />
-
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-            <div className="space-y-6">
-              <UpdateBannerPreview />
-              <IconPackPreview />
-            </div>
-            <div className="space-y-6">
-              <LogoCarousel items={carouselItems} />
-              <MicroLoaderPreview />
-            </div>
-          </div>
-        </div>
-      </ScrollArea>
-    </section>
-  );
-}
-
-function DynamicIdentityBanner() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
-      className="relative overflow-hidden rounded-lg border border-white/10 bg-[#111215] px-8 py-7 shadow-[0_28px_90px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)]"
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.09),transparent_35%,rgba(255,255,255,0.075))]" />
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -right-20 top-1/2 size-72 -translate-y-1/2 rounded-full border border-white/10"
-        animate={{ rotate: 360 }}
-        transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
-      />
-      <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white backdrop-blur-xl">
-            <span className="size-1.5 rounded-full bg-white shadow-[0_0_18px_rgba(255,255,255,0.45)]" />
-            Identity preview
-          </div>
-          <h2 className="max-w-4xl text-5xl font-semibold tracking-normal text-foreground">
-            Nexus Core
-          </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Un centro de mando sobrio para abrir, organizar y entender todo lo que vive en tu PC.
-          </p>
-        </div>
-        <div className="grid min-w-72 gap-2 rounded-md border border-white/10 bg-black/24 p-4">
-          {["Launcher", "Copilot", "Library"].map((label, index) => (
-            <motion.div
-              key={label}
-              className="flex items-center justify-between rounded-sm bg-white/[0.035] px-3 py-2 text-sm"
-              animate={{ opacity: [0.58, 1, 0.58] }}
-              transition={{ duration: 2.4, delay: index * 0.3, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <span className="text-muted-foreground">{label}</span>
-              <span className="text-white">Online</span>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function UpdateBannerPreview() {
-  return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-card/80 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            Update banner
-          </p>
-          <h3 className="mt-1 text-xl font-semibold">Actualizar banner</h3>
-        </div>
-        <Badge variant="secondary">21st style</Badge>
-      </div>
-      <UpgradeBanner />
-    </div>
-  );
-}
-
-function LogoCarousel({ items }: { items: LibraryItem[] }) {
-  const loopItems = [...items, ...items];
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-card/80 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-          Logo carousel
-        </p>
-        <h3 className="mt-1 text-xl font-semibold">Ecosistema conectado</h3>
-      </div>
-      <div className="relative overflow-hidden rounded-md border border-white/8 bg-black/30 py-6 [mask-image:linear-gradient(to_right,transparent,black_14%,black_86%,transparent)]">
-        <div className="nexus-logo-track flex w-max gap-8 px-4">
-          {loopItems.map((item, index) => (
-            <div
-              key={`${item.id}-${index}`}
-              className="flex min-w-40 items-center justify-center gap-3 opacity-70 grayscale transition-all hover:opacity-100 hover:grayscale-0"
-            >
-              <AppIcon item={item} className="size-9 bg-white/[0.04]" iconClassName="size-4" />
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold">{item.name}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function IconPackPreview() {
-  const iconItems = [
-    { label: "Games", icon: Play },
-    { label: "Apps", icon: AppWindow },
-    { label: "Projects", icon: Folder },
-    { label: "System", icon: HardDrive },
-    { label: "Copilot", icon: Sparkles },
-    { label: "Command", icon: CommandIcon },
-  ];
-
-  return (
-    <div className="rounded-lg border border-white/10 bg-card/80 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-          Icon pack
-        </p>
-        <h3 className="mt-1 text-xl font-semibold">Categorias Nexus</h3>
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        {iconItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <motion.div
-              key={item.label}
-              whileHover={{ y: -3 }}
-              className="rounded-md border border-white/8 bg-black/24 p-4"
-            >
-              <div className="mb-4 grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[0.07] text-white backdrop-blur-xl">
-                <Icon className="size-5" />
-              </div>
-              <div className="text-sm font-semibold">{item.label}</div>
-              <div className="mt-1 text-xs text-muted-foreground">Core glyph</div>
-            </motion.div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function MicroLoaderPreview() {
-  return (
-    <div className="rounded-lg border border-white/10 bg-card/80 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-          Animated micro-loaders
-        </p>
-        <h3 className="mt-1 text-xl font-semibold">Estados de sistema</h3>
-      </div>
-      <div className="grid gap-3">
-        <MicroLoader label="Indexando biblioteca" tone="primary" />
-        <MicroLoader label="Validando ruta" tone="muted" />
-        <MicroLoader label="Abriendo programa" tone="success" />
-      </div>
-    </div>
-  );
-}
-
-function MicroLoader({ label, tone }: { label: string; tone: "primary" | "muted" | "success" }) {
-  const color =
-    tone === "success"
-      ? "bg-white"
-      : tone === "primary"
-        ? "bg-white/80"
-        : "bg-muted-foreground";
-
-  return (
-    <div className="flex items-center justify-between rounded-md border border-white/8 bg-black/24 px-4 py-3">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-1.5">
-        {[0, 1, 2].map((dot) => (
-          <motion.span
-            key={dot}
-            className={cn("size-2 rounded-full", color)}
-            animate={{ opacity: [0.3, 1, 0.3], y: [0, -4, 0] }}
-            transition={{ duration: 0.9, delay: dot * 0.12, repeat: Infinity, ease: "easeInOut" }}
-          />
-        ))}
-      </div>
-    </div>
   );
 }
 

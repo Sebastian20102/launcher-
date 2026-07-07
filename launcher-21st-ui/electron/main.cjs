@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 let mainWindow;
@@ -24,6 +25,10 @@ function aiMemoryPath() {
 
 function aiSettingsPath() {
   return path.join(app.getPath("userData"), "ai-settings.json");
+}
+
+function notesPath() {
+  return path.join(app.getPath("userData"), "notes.json");
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_REQUEST_TIMEOUT_MS) {
@@ -143,6 +148,74 @@ async function writeAiMemory(memory) {
   };
   await fs.writeFile(file, JSON.stringify(safeMemory, null, 2), "utf8");
   return safeMemory;
+}
+
+async function readNotes() {
+  const file = notesPath();
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  if (!fsSync.existsSync(file)) {
+    await fs.writeFile(file, "[]", "utf8");
+    return [];
+  }
+  try {
+    const raw = (await fs.readFile(file, "utf8")).replace(/^\uFEFF/, "");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeNotes(notes) {
+  const file = notesPath();
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const safeNotes = Array.isArray(notes)
+    ? notes.map((note) => ({
+        id: String(note.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+        title: String(note.title || "Nota sin titulo").slice(0, 120),
+        body: String(note.body || "").slice(0, 12000),
+        linkedItemId: note.linkedItemId ? String(note.linkedItemId) : "",
+        pinned: Boolean(note.pinned),
+        updatedAt: note.updatedAt || new Date().toISOString(),
+        createdAt: note.createdAt || new Date().toISOString(),
+      }))
+    : [];
+  await fs.writeFile(file, JSON.stringify(safeNotes, null, 2), "utf8");
+  return safeNotes;
+}
+
+async function getSystemSnapshot() {
+  const cpus = os.cpus();
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  let rootDisk = null;
+  try {
+    const stat = await fs.statfs(app.getPath("home"));
+    rootDisk = {
+      total: stat.blocks * stat.bsize,
+      free: stat.bfree * stat.bsize,
+      available: stat.bavail * stat.bsize,
+    };
+  } catch {
+    rootDisk = null;
+  }
+
+  return {
+    hostname: os.hostname(),
+    platform: os.platform(),
+    release: os.release(),
+    arch: os.arch(),
+    uptimeSeconds: os.uptime(),
+    cpuModel: cpus[0]?.model || "No disponible",
+    cpuCores: cpus.length,
+    totalMemory: totalMem,
+    freeMemory: freeMem,
+    usedMemory: totalMem - freeMem,
+    rootDisk,
+    homeDir: app.getPath("home"),
+    appDataDir: app.getPath("userData"),
+    capturedAt: new Date().toISOString(),
+  };
 }
 
 function extractMemoryFacts(message) {
@@ -692,6 +765,9 @@ ipcMain.handle("library:save", (_event, items) => writeLibrary(items));
 ipcMain.handle("ai:memory", readAiMemory);
 ipcMain.handle("ai:chat", async (_event, payload) => callAi(payload || {}));
 ipcMain.handle("ai:clearMemory", async () => writeAiMemory({ messages: [], facts: [] }));
+ipcMain.handle("notes:load", readNotes);
+ipcMain.handle("notes:save", (_event, notes) => writeNotes(notes));
+ipcMain.handle("system:snapshot", getSystemSnapshot);
 
 ipcMain.handle("window:minimize", () => {
   mainWindow?.minimize();
@@ -754,6 +830,19 @@ ipcMain.handle("dialog:pickExecutable", async () => {
     properties: ["openFile"],
     filters: [
       { name: "Programas", extensions: ["exe", "lnk", "bat", "cmd"] },
+      { name: "Todos", extensions: ["*"] },
+    ],
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0] ?? null;
+});
+
+ipcMain.handle("dialog:pickAnyFile", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Agregar archivo",
+    properties: ["openFile"],
+    filters: [
+      { name: "Archivos utiles", extensions: ["exe", "lnk", "bat", "cmd", "png", "jpg", "jpeg", "webp", "gif", "mp4", "webm", "mov", "mkv", "txt", "md", "json", "csv", "log"] },
       { name: "Todos", extensions: ["*"] },
     ],
   });
