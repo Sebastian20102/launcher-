@@ -1,42 +1,62 @@
 # Nexus Launcher
 
-Nexus Launcher is a desktop command center for Windows: one place to organize, search, launch and inspect local games, programs, projects and system tools.
+Nexus Launcher is a Windows desktop launcher for organizing local games, programs, projects, folders and tools in one clean command center.
 
-It is built as a real desktop app, not a local web page. The current production code lives in `launcher-21st-ui`.
+> Alpha software: Nexus Launcher is usable, but still evolving fast.
+
+## Download
+
+The public Windows build is distributed through GitHub Releases:
+
+[Download the latest release](https://github.com/Sebastian20102/launcher-/releases/latest)
+
+Use the installer or portable `.exe` attached to the latest release. Normal users do not need to run a local server.
+
+## Highlights
+
+- Local library for games, apps, projects and folders.
+- Real desktop launching through Electron.
+- Search, filters, favorites, dock actions and details panel.
+- Glass UI with smooth motion and dynamic wallpapers.
+- Custom backgrounds: images, GIFs and videos.
+- Nexus Copilot with local memory and support for LM Studio, Ollama or OpenAI-compatible setups.
+- Clean distribution: every user gets their own local library and AI memory.
+
+## Privacy And Local Data
+
+Nexus Launcher stores user data on each PC, outside the repository:
+
+```text
+%APPDATA%\Nexus Launcher\library.json
+%APPDATA%\Nexus Launcher\ai-memory.json
+%APPDATA%\Nexus Launcher\ai-settings.json
+```
+
+The release build does not include the creator's local programs, generated library, icons, AI memory, API keys or AppData files.
+
+## Development
 
 ```powershell
 cd launcher-21st-ui
 npm install
+npm run dev
+```
+
+Run the desktop app locally:
+
+```powershell
+cd launcher-21st-ui
 npm run desktop
 ```
 
-## What It Does
-
-- Indexes local games, programs, projects and system tools.
-- Opens real apps, folders and protocols such as `steam://`.
-- Keeps a persistent local library in AppData.
-- Supports search, filters, favorites, dock actions and a focus/details panel.
-- Imports real Windows metadata from files, shortcuts, Steam and local folders.
-- Uses extracted app icons when available, with stable fallbacks when icons fail.
-- Includes Nexus Copilot, an AI workspace with local memory and launcher-aware actions.
-
-## Desktop First
-
-Nexus Launcher is designed for desktop use:
-
-- Frameless Electron window with custom controls.
-- Native file/folder pickers.
-- Native path validation and launch actions.
-- Local-only user library storage.
-- No required localhost server for normal use.
-
-During development, the unpacked executable is generated here:
+Create Windows release artifacts:
 
 ```powershell
-launcher-21st-ui\release\win-unpacked\Nexus Launcher.exe
+cd launcher-21st-ui
+npm run dist:win
 ```
 
-`release/` is ignored because it is generated output.
+Artifacts are written to `launcher-21st-ui/release/` and should be uploaded to GitHub Releases, not committed to the repo.
 
 ## Tech Stack
 
@@ -47,63 +67,23 @@ launcher-21st-ui\release\win-unpacked\Nexus Launcher.exe
 - Radix UI primitives
 - Framer Motion
 - Electron
-- PowerShell import tools
 
-## Project Structure
+## Roadmap
 
-```text
-.
-+-- launcher-21st-ui/
-|   +-- electron/          # Electron main/preload bridge
-|   +-- src/               # React app
-|   +-- src/components/    # Launcher UI, Copilot, motion surfaces
-|   +-- src/lib/           # Library/native helpers
-|   +-- tools/             # Local import/enrichment scripts
-|   +-- docs/              # Planning and integration notes
-+-- README.md
-+-- .gitignore
-```
-
-## Useful Commands
-
-```powershell
-cd launcher-21st-ui
-npm run lint
-npm run build
-npm run desktop
-```
-
-Import/enrich local launcher data:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\import-local-library.ps1
-powershell -ExecutionPolicy Bypass -File .\tools\enrich-library-metadata.ps1
-powershell -ExecutionPolicy Bypass -File .\tools\export-app-icons.ps1
-```
-
-## Local Data
-
-User data is intentionally stored outside the repository:
-
-```powershell
-%APPDATA%\Nexus Launcher\library.json
-%APPDATA%\Nexus Launcher\ai-memory.json
-%APPDATA%\Nexus Launcher\ai-settings.json
-```
-
-Generated import data and icons are also ignored:
-
-```powershell
-launcher-21st-ui\public\library.generated.json
-launcher-21st-ui\public\app-icons\
-```
-
-## AI
-
-Nexus Copilot can use local providers such as LM Studio/Ollama or an OpenAI-compatible setup. It can answer normally, remember local preferences and trigger launcher actions such as opening apps from the indexed library.
-
-Secrets must stay local. Do not commit API keys, `.env` files, AppData files, generated libraries or icon exports.
+- `v0.2`: notes system, remove test lab, deeper personalization and stronger brand identity.
+- `v0.3`: better recognition for executables, images, videos and text files.
+- `v0.4`: real usage-time tracking and more accurate app/file metadata.
+- `v0.5`: stronger AI assistant with file analysis and library organization abilities.
+- `v0.6`: PC analysis, hardware specifications, smarter notifications and desktop panel.
+- `v1.0`: fast startup, refined architecture, download website and stable release.
 
 ## Repository Hygiene
 
-This repository tracks the production Electron/React launcher source only. Build outputs, generated libraries, app icons, local settings, installers and legacy prototypes are excluded from Git.
+Do not commit:
+
+- `.env` files or API keys.
+- `dist/`, `release/`, installers or portable builds.
+- `node_modules/`.
+- `public/library.generated.json`.
+- `public/app-icons/`.
+- AppData files or personal generated libraries.

@@ -53,7 +53,7 @@ export const seedLibrary: LibraryItem[] = [
     lastUsed: "Hoy",
     playtime: "312 h",
     description: "Biblioteca principal, Big Picture y juegos instalados.",
-    accent: "bg-sky-200 text-sky-950",
+    accent: "bg-white/10 text-white",
     icon: "gamepad",
     favorite: true,
   },
@@ -67,7 +67,7 @@ export const seedLibrary: LibraryItem[] = [
     lastUsed: "Hace 20 min",
     playtime: "91 h",
     description: "Editor principal para prototipos, scripts y launcher WPF.",
-    accent: "bg-blue-200 text-blue-950",
+    accent: "bg-white/10 text-white",
     icon: "code",
     favorite: true,
   },
@@ -81,7 +81,7 @@ export const seedLibrary: LibraryItem[] = [
     lastUsed: "Hace 1 h",
     playtime: "48 h",
     description: "PowerShell, node, git y comandos de mantenimiento.",
-    accent: "bg-zinc-200 text-zinc-950",
+    accent: "bg-white/10 text-white",
     icon: "terminal",
   },
   {
@@ -94,7 +94,7 @@ export const seedLibrary: LibraryItem[] = [
     lastUsed: "Hoy",
     playtime: "18 h",
     description: "Version de escritorio real del launcher.",
-    accent: "bg-stone-200 text-stone-950",
+    accent: "bg-white/10 text-white",
     icon: "boxes",
     favorite: true,
   },
@@ -108,7 +108,7 @@ export const seedLibrary: LibraryItem[] = [
     lastUsed: "Ayer",
     playtime: "74 h",
     description: "Acceso a juegos de Blizzard y actualizaciones.",
-    accent: "bg-cyan-100 text-cyan-950",
+    accent: "bg-white/10 text-white",
     icon: "monitor",
   },
   {
@@ -121,7 +121,7 @@ export const seedLibrary: LibraryItem[] = [
     lastUsed: "Hoy",
     playtime: "132 h",
     description: "Acceso rapido a proyectos activos y prototipos.",
-    accent: "bg-amber-100 text-amber-950",
+    accent: "bg-white/10 text-white",
     icon: "folder",
   },
 ];
@@ -148,7 +148,7 @@ export function createItemFromPath(targetPath: string, type: LibraryItem["type"]
     description: isProject
       ? "Carpeta o proyecto agregado manualmente."
       : "Programa o juego agregado manualmente.",
-    accent: isProject ? "bg-amber-100 text-amber-950" : "bg-slate-200 text-slate-950",
+    accent: "bg-white/10 text-white",
     icon: isProject ? "folder" : isSystem ? "terminal" : "gamepad",
     favorite: false,
   };

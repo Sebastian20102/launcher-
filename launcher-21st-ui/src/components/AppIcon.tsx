@@ -19,7 +19,12 @@ export function AppIcon({ item, className, iconClassName }: AppIconProps) {
   }, [item.iconUrl]);
 
   return (
-    <div className={cn("grid place-items-center overflow-hidden rounded-md", item.accent, className)}>
+    <div
+      className={cn(
+        "grid place-items-center overflow-hidden rounded-xl border border-white/12 bg-white/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur-xl",
+        className,
+      )}
+    >
       {canUseImage ? (
         <img
           alt=""

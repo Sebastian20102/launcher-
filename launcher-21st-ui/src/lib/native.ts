@@ -16,10 +16,6 @@ export async function loadNativeLibrary(fallback: LibraryItem[]) {
     return fallback;
   }
   const stored = await window.nexus.loadLibrary();
-  if (!stored.length) {
-    await window.nexus.saveLibrary(fallback);
-    return fallback;
-  }
   return stored;
 }
 

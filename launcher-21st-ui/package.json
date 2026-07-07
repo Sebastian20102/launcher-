@@ -1,7 +1,9 @@
 {
   "name": "launcher-21st-ui",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0-alpha",
+  "description": "A Windows desktop launcher for local games, apps, projects, wallpapers and AI-assisted organization.",
+  "author": "Sebastian20102",
   "type": "module",
   "scripts": {
     "dev": "vite",

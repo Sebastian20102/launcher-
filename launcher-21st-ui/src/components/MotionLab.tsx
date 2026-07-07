@@ -115,7 +115,7 @@ export function MotionLab({ items }: MotionLabProps) {
                       item.id === focusId && "border-primary bg-secondary",
                     )}
                   >
-                    <motion.div layoutId={`console-icon-${item.id}`} className={cn("grid size-11 place-items-center rounded-md", item.accent)}>
+                    <motion.div layoutId={`console-icon-${item.id}`} className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[0.075] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
                       <Icon className="size-5" />
                     </motion.div>
                     <div className="min-w-0 flex-1">
@@ -140,7 +140,7 @@ export function MotionLab({ items }: MotionLabProps) {
                   >
                     <div>
                       <div className="mb-7 flex items-start justify-between">
-                        <motion.div layoutId={`console-icon-${focusItem.id}`} className={cn("grid size-24 place-items-center rounded-lg", focusItem.accent)}>
+                        <motion.div layoutId={`console-icon-${focusItem.id}`} className="grid size-24 place-items-center rounded-2xl border border-white/10 bg-white/[0.075] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
                           {(() => {
                             const Icon = getIcon(focusItem.icon);
                             return <Icon className="size-12" />;
@@ -292,7 +292,7 @@ function TiltCard({
         style={{ left: `${tilt.px}%`, top: `${tilt.py}%`, transform: "translate(-50%, -50%)" }}
       />
       <div className="relative z-10 flex h-full flex-col justify-between">
-        <div className={cn("grid size-14 place-items-center rounded-md", item.accent)}>
+        <div className="grid size-14 place-items-center rounded-xl border border-white/10 bg-white/[0.075] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
           <Icon className="size-7" />
         </div>
         <div>
@@ -312,7 +312,7 @@ function DetailPreview({ item }: { item: LibraryItem }) {
 
   return (
     <div>
-      <div className={cn("mb-5 grid size-16 place-items-center rounded-lg", item.accent)}>
+      <div className="mb-5 grid size-16 place-items-center rounded-2xl border border-white/10 bg-white/[0.075] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
         <Icon className="size-8" />
       </div>
       <Badge variant="secondary">{item.status}</Badge>

@@ -20,11 +20,11 @@ type OdysseyBackdropProps = {
 };
 
 const statusCopy: Record<ActionStatus, { label: string; icon: typeof Play; tone: string }> = {
-  idle: { label: "En foco", icon: Zap, tone: "text-primary" },
-  opening: { label: "Abriendo", icon: Loader2, tone: "text-primary" },
-  validating: { label: "Validando", icon: Loader2, tone: "text-primary" },
-  importing: { label: "Importando", icon: Loader2, tone: "text-primary" },
-  success: { label: "Completado", icon: CheckCircle2, tone: "text-emerald-300" },
+  idle: { label: "En foco", icon: Zap, tone: "text-white" },
+  opening: { label: "Abriendo", icon: Loader2, tone: "text-white" },
+  validating: { label: "Validando", icon: Loader2, tone: "text-white" },
+  importing: { label: "Importando", icon: Loader2, tone: "text-white" },
+  success: { label: "Completado", icon: CheckCircle2, tone: "text-white" },
   error: { label: "Atencion", icon: XCircle, tone: "text-red-300" },
 };
 
@@ -59,7 +59,7 @@ export function OdysseyBackdrop({ intensity = "calm" }: OdysseyBackdropProps) {
               fill="none"
               stroke="currentColor"
               strokeWidth={index === 1 ? 1.2 : 0.8}
-              className={index % 2 === 0 ? "text-primary/45" : "text-muted-foreground/28"}
+              className={index % 2 === 0 ? "text-white/28" : "text-muted-foreground/28"}
               strokeLinecap="round"
               initial={{ pathLength: 0.1, opacity: 0 }}
               animate={{
@@ -78,7 +78,7 @@ export function OdysseyBackdrop({ intensity = "calm" }: OdysseyBackdropProps) {
       </motion.div>
       <div className="absolute inset-0 bg-background/48" />
       <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.26)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.2)_1px,transparent_1px)] bg-[size:84px_84px] opacity-35" />
-      <div className="absolute left-6 top-24 hidden rounded-md border border-primary/25 bg-card/35 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-primary/70 backdrop-blur xl:block">
+      <div className="absolute left-6 top-24 hidden rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/70 backdrop-blur-xl xl:block">
         Odyssey Field
       </div>
     </div>
@@ -102,7 +102,7 @@ export function OdysseyFocus({ item, status, message }: OdysseyFocusProps) {
               fill="none"
               stroke="currentColor"
               strokeWidth={index === 1 ? 1.8 : 1.1}
-              className={index === 1 ? "text-primary/70" : "text-muted-foreground/25"}
+              className={index === 1 ? "text-white/45" : "text-muted-foreground/25"}
               strokeLinecap="round"
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{
@@ -121,7 +121,7 @@ export function OdysseyFocus({ item, status, message }: OdysseyFocusProps) {
       </div>
 
       <motion.div
-        className="absolute inset-6 rounded-lg border border-primary/20"
+        className="absolute inset-6 rounded-lg border border-white/10"
         animate={{ opacity: isBusy ? [0.2, 0.8, 0.2] : [0.12, 0.28, 0.12] }}
         transition={{ duration: isBusy ? 0.9 : 3, repeat: Infinity }}
       />
@@ -130,11 +130,11 @@ export function OdysseyFocus({ item, status, message }: OdysseyFocusProps) {
         <div className="mb-10 flex items-start justify-between">
           <motion.div
             layoutId={`launcher-icon-${item.id}`}
-            className={cn("grid size-16 place-items-center rounded-lg shadow-sm", item.accent)}
+            className="grid size-16 place-items-center rounded-2xl border border-white/10 bg-white/[0.075] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl"
           >
             <Icon className="size-8" />
           </motion.div>
-          <Badge variant="secondary" className="border-primary/30">
+          <Badge variant="secondary" className="border-white/10">
             Odyssey Focus
           </Badge>
         </div>
@@ -238,11 +238,11 @@ export function FocusDepthCard({
       className="relative overflow-hidden rounded-lg border border-border bg-secondary/85 p-4 will-change-transform"
     >
       <div
-        className="pointer-events-none absolute size-40 rounded-full bg-primary/10 blur-2xl"
+        className="pointer-events-none absolute size-40 rounded-full bg-white/10 blur-2xl"
         style={{ left: `${tilt.x}%`, top: `${tilt.y}%`, transform: "translate(-50%, -50%)" }}
       />
       <motion.div
-        className="pointer-events-none absolute inset-0 border border-primary/20"
+        className="pointer-events-none absolute inset-0 border border-white/10"
         animate={{ opacity: isActive ? [0.12, 0.5, 0.12] : [0.06, 0.16, 0.06] }}
         transition={{ duration: isActive ? 0.9 : 3, repeat: Infinity }}
       />

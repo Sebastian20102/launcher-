@@ -9,6 +9,7 @@ const OLLAMA_MODEL = process.env.NEXUS_OLLAMA_MODEL || "llama3.2:3b";
 const OLLAMA_BASE_URL = process.env.NEXUS_OLLAMA_BASE_URL || "http://127.0.0.1:11434";
 const LM_STUDIO_MODEL = process.env.NEXUS_LM_STUDIO_MODEL || "auto";
 const LM_STUDIO_BASE_URL = process.env.NEXUS_LM_STUDIO_BASE_URL || "http://127.0.0.1:1234/v1";
+const AI_REQUEST_TIMEOUT_MS = Number(process.env.NEXUS_AI_TIMEOUT_MS || 22000);
 
 app.setPath("userData", path.join(app.getPath("appData"), "Nexus Launcher"));
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
@@ -23,6 +24,23 @@ function aiMemoryPath() {
 
 function aiSettingsPath() {
   return path.join(app.getPath("userData"), "ai-settings.json");
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = AI_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError" || /aborted|abort/i.test(String(error?.message || ""));
 }
 
 async function readAiSettings() {
@@ -249,7 +267,9 @@ async function callOpenAi({ message, items }) {
     content: entry.content,
   }));
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  let response;
+  try {
+    response = await fetchWithTimeout("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -276,7 +296,17 @@ async function callOpenAi({ message, items }) {
         { role: "user", content: userMessage.content },
       ],
     }),
-  });
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      provider: "openai",
+      model,
+      content: isAbortError(error)
+        ? "OpenAI tardo demasiado en responder. Corte la espera para que el chat no se quede pensando infinito."
+        : `No pude conectar con OpenAI ahora mismo. ${error?.message || error}`,
+    };
+  }
 
   if (!response.ok) {
     const body = await response.text();
@@ -320,7 +350,7 @@ async function callOllama({ message, items }) {
   }));
 
   try {
-    const response = await fetch(`${baseUrl}/api/chat`, {
+    const response = await fetchWithTimeout(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -364,13 +394,15 @@ async function callOllama({ message, items }) {
       content: assistantText,
       remembered: nextMemory.facts.length,
     };
-  } catch {
+  } catch (error) {
     return {
       ok: false,
       provider: "ollama",
       model,
       content:
-        `No pude conectar con Ollama en ${baseUrl}. Instala y arranca la IA local con: .\\tools\\install-local-ai.ps1`,
+        isAbortError(error)
+          ? `Ollama tardo demasiado en responder desde ${baseUrl}. Corte la espera para que el chat no se quede pensando infinito.`
+          : `No pude conectar con Ollama en ${baseUrl}. Instala y arranca la IA local con: .\\tools\\install-local-ai.ps1`,
     };
   }
 }
@@ -378,7 +410,7 @@ async function callOllama({ message, items }) {
 async function resolveLmStudioModel(baseUrl, configuredModel) {
   if (configuredModel && configuredModel !== "auto") return configuredModel;
   try {
-    const response = await fetch(`${baseUrl}/models`);
+    const response = await fetchWithTimeout(`${baseUrl}/models`, {}, 5000);
     if (!response.ok) return null;
     const data = await response.json();
     const models = Array.isArray(data?.data) ? data.data : [];
@@ -413,7 +445,7 @@ async function callLmStudio({ message, items }) {
   }));
 
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -456,13 +488,15 @@ async function callLmStudio({ message, items }) {
       content: assistantText,
       remembered: nextMemory.facts.length,
     };
-  } catch {
+  } catch (error) {
     return {
       ok: false,
       provider: "lmstudio",
       model,
       content:
-        `No pude conectar con LM Studio en ${baseUrl}. Abre LM Studio, carga un modelo y activa Start Server en la pantalla Developer/Local Server.`,
+        isAbortError(error)
+          ? `LM Studio tardo demasiado en responder desde ${baseUrl}. Corte la espera para que el chat no se quede pensando infinito. Revisa si el modelo esta cargado o baja el contexto del modelo.`
+          : `No pude conectar con LM Studio en ${baseUrl}. Abre LM Studio, carga un modelo y activa Start Server en la pantalla Developer/Local Server.`,
     };
   }
 }
@@ -499,6 +533,7 @@ function normalizeLibraryKey(value) {
 }
 
 async function readBundledLibrary() {
+  if (process.env.NEXUS_INCLUDE_BUNDLED_LIBRARY !== "1") return [];
   const candidates = [
     path.join(__dirname, "..", "dist", "library.generated.json"),
     path.join(__dirname, "..", "public", "library.generated.json"),
@@ -562,6 +597,12 @@ async function readLibrary() {
     const stored = JSON.parse(raw);
     const storedItems = normalizeLibraryArray(stored);
     const bundledItems = await readBundledLibrary();
+    if (!bundledItems.length) {
+      if (storedItems.length !== (Array.isArray(stored) ? stored.length : 0)) {
+        await fs.writeFile(file, JSON.stringify(storedItems, null, 2), "utf8");
+      }
+      return storedItems;
+    }
     const merged = mergeLibraries(storedItems, bundledItems);
     if (merged.length > storedItems.length || merged.length !== (Array.isArray(stored) ? stored.length : 0)) {
       await fs.writeFile(file, JSON.stringify(merged, null, 2), "utf8");

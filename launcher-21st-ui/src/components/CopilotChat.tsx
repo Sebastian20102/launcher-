@@ -28,6 +28,8 @@ type CopilotChatProps = {
   mode?: "dialog" | "page";
 };
 
+const aiUiTimeoutMs = 26000;
+
 function resizeTextarea(target: HTMLTextAreaElement) {
   target.style.height = "0px";
   target.style.height = `${Math.min(target.scrollHeight, 144)}px`;
@@ -83,6 +85,16 @@ function findLaunchItem(items: LibraryItem[], target: string) {
     runnableItems.find((item) => normalizedTarget.includes(normalizeText(item.name))) ??
     null
   );
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise
+      .then(resolve)
+      .catch(reject)
+      .finally(() => window.clearTimeout(timer));
+  });
 }
 
 export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, mode = "dialog" }: CopilotChatProps) {
@@ -171,7 +183,11 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
       }
 
       const response = window.nexus?.chatWithAi
-        ? await window.nexus.chatWithAi({ message: text, items })
+        ? await withTimeout(
+            window.nexus.chatWithAi({ message: text, items }),
+            aiUiTimeoutMs,
+            "La IA tardo demasiado en responder. Corte la espera para que el chat no se quede pensando infinito.",
+          )
         : { ok: false, content: localPreviewResponse(items) };
       setMessages((current) => [
         ...current,
@@ -240,15 +256,12 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
           <div className="pointer-events-none absolute left-[80%] top-[24%] size-1 rounded-full bg-white/60" />
           <div className="pointer-events-none absolute left-[28%] top-[11%] size-0.5 rounded-full bg-white/80" />
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:82px_82px] opacity-20" />
-          {mode === "page" && (
-            <div className="relative z-10 mx-auto w-full max-w-4xl px-6 pt-8">
-              <CopilotMorphLine />
-            </div>
-          )}
-
           {mode === "page" ? (
-            <div className="relative z-10 shrink-0 px-8 pt-12 text-center">
+            <div className="relative z-10 shrink-0 px-8 pt-[14vh] text-center">
               {heading}
+              <div className="mx-auto mt-8 max-w-4xl">
+                <CopilotMorphLine />
+              </div>
             </div>
           ) : (
             <DialogHeader className="relative z-10 items-center px-8 pt-52 text-center">
@@ -365,29 +378,32 @@ function CopilotMorphLine() {
   }, [words.length]);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
+    <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-white/[0.075] px-8 py-6 shadow-[0_24px_90px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.22),transparent_42%)]" />
       <svg className="absolute size-0">
         <filter id="copilot-goo">
-          <feGaussianBlur in="SourceGraphic" result="blur" stdDeviation="5" />
+          <feGaussianBlur in="SourceGraphic" result="blur" stdDeviation="7" />
           <feColorMatrix
             in="blur"
             result="goo"
-            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -7"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8"
           />
           <feBlend in="SourceGraphic" in2="goo" />
         </filter>
       </svg>
-      <div className="flex items-center justify-center gap-3 text-sm text-neutral-300">
-        <Sparkles className="size-4 text-white" />
-        <span>Nexus Copilot can</span>
-        <span className="relative inline-grid h-7 min-w-32 place-items-center text-lg font-semibold text-white" style={{ filter: "url(#copilot-goo)" }}>
+      <div className="relative flex flex-col items-center justify-center gap-2 text-neutral-300 sm:flex-row sm:gap-4">
+        <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
+          <Sparkles className="size-4 text-white" />
+          <span>Nexus Copilot can</span>
+        </div>
+        <span className="relative inline-grid h-14 min-w-60 place-items-center text-4xl font-semibold tracking-normal text-white" style={{ filter: "url(#copilot-goo)" }}>
           <AnimatePresence mode="wait">
             <motion.span
               key={words[activeWord]}
-              initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -10, filter: "blur(8px)" }}
-              transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+              initial={{ opacity: 0, y: 18, scale: 0.96, filter: "blur(12px)" }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -18, scale: 0.96, filter: "blur(12px)" }}
+              transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
               className="absolute"
             >
               {words[activeWord]}

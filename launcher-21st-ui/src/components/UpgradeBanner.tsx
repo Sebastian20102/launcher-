@@ -65,16 +65,16 @@ export function UpgradeBanner({
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div className="relative overflow-hidden rounded-md border border-primary/20 bg-[#11110f] p-5">
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.065] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
       <motion.div
         aria-hidden
-        className="absolute inset-y-0 left-0 w-1/3 bg-primary/10 blur-2xl"
+        className="absolute inset-y-0 left-0 w-1/3 bg-white/10 blur-2xl"
         animate={{ x: ["-80%", "260%"] }}
         transition={{ duration: 5.2, repeat: Infinity, ease: "easeInOut" }}
       />
       <div className="relative flex flex-col gap-4 pr-9 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-4">
-          <div className="grid size-11 place-items-center rounded-md border border-primary/25 bg-primary/10 text-primary">
+          <div className="grid size-11 place-items-center rounded-xl border border-white/12 bg-white/[0.085] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
             <Sparkles className="size-5" />
           </div>
           <div>
@@ -89,7 +89,7 @@ export function UpgradeBanner({
         </div>
 
         <button
-          className="focus-visible:shadow-focus-ring relative my-[-1px] cursor-pointer overflow-visible rounded-xs border-none bg-transparent px-0 py-1 font-sans text-[13px] font-medium text-[#002359] underline decoration-[#CAE7FF] underline-offset-[5px] outline-none hover:text-[#005FF2] hover:decoration-[#94CCFF] focus-visible:!shadow-[#008FFF] dark:text-[#EAF5FF] dark:decoration-[#003674] dark:hover:text-[#44A7FF] dark:hover:decoration-[#00408A]"
+          className="focus-visible:shadow-focus-ring relative my-[-1px] cursor-pointer overflow-visible rounded-xs border-none bg-transparent px-0 py-1 font-sans text-[13px] font-medium text-white underline decoration-white/25 underline-offset-[5px] outline-none hover:text-white hover:decoration-white/60 focus-visible:!shadow-white"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           onClick={onClick}
@@ -103,7 +103,7 @@ export function UpgradeBanner({
                   animate={isHovered ? "visible" : "hidden"}
                   variants={iconVariants}
                   custom={{ x: -9, y: -12 }}
-                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 text-[19px] text-[#005FF2] dark:text-[#006EFE]"
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 text-[19px] text-white"
                 >
                   <SettingsFilled className="h-[19px] w-[19px]" />
                 </motion.span>
@@ -116,7 +116,7 @@ export function UpgradeBanner({
                   animate={isHovered ? "visible" : "hidden"}
                   variants={iconVariants}
                   custom={{ x: 6, y: 13 }}
-                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 text-[19px] text-[#005FF2] dark:text-[#006EFE]"
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 text-[19px] text-white"
                 >
                   <SettingsFilled className="h-[19px] w-[19px]" />
                 </motion.span>
