@@ -864,6 +864,7 @@ function LauncherCard({
   index,
   active,
   density,
+  compactViewport,
   onSelect,
   onFavorite,
 }: {
@@ -871,10 +872,11 @@ function LauncherCard({
   index: number;
   active: boolean;
   density: LauncherAppearance["density"];
+  compactViewport: boolean;
   onSelect: () => void;
   onFavorite: () => void;
 }) {
-  const isCompact = density === "compact";
+  const isCompact = density === "compact" || compactViewport;
   const isFocus = density === "focus";
 
   return (
@@ -887,7 +889,7 @@ function LauncherCard({
       whileTap={{ scale: 0.985 }}
       onClick={onSelect}
       className={cn(
-        "group relative h-full w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-left shadow-[0_18px_56px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.055)] backdrop-blur-xl transition-[background,border-color,box-shadow] duration-200 ease-out will-change-transform",
+        "group relative h-full w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-left shadow-[0_18px_56px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.055)] backdrop-blur-xl transition-[background,border-color,box-shadow] duration-200 ease-out contain-layout will-change-transform",
         "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.12),transparent_42%)] before:opacity-0 before:transition-opacity before:duration-200 hover:before:opacity-100",
         active && "border-white/35 bg-white/[0.10] shadow-[0_22px_70px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.09)]",
         isCompact && "p-2.5",
@@ -901,10 +903,10 @@ function LauncherCard({
         animate={{ opacity: active ? 0.8 : 0.28, scaleX: active ? 1 : 0.72 }}
         transition={{ duration: 0.34, ease: appleEase }}
       />
-      <div className={cn("relative z-10 flex items-start justify-between gap-3", isCompact ? "mb-3" : "mb-4")}>
+      <div className={cn("relative z-10 flex items-start justify-between gap-3", isCompact ? "mb-2.5" : "mb-4")}>
         <AppIcon
           item={item}
-          className={cn("shrink-0", isCompact ? "size-10" : isFocus ? "size-14" : "size-11 sm:size-12 xl:size-10 2xl:size-11")}
+          className={cn("shrink-0", isCompact ? "size-9" : isFocus ? "size-14" : "size-11 sm:size-12 xl:size-10 2xl:size-11")}
           iconClassName={cn(isFocus ? "size-6" : "size-5")}
         />
         <button
@@ -913,7 +915,7 @@ function LauncherCard({
             event.stopPropagation();
             onFavorite();
           }}
-          className="grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-white/10 hover:text-white"
+          className={cn("grid shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-white/10 hover:text-white", isCompact ? "size-7" : "size-8")}
         >
           {item.favorite ? (
             <Star className="size-4 fill-current text-white" />
@@ -922,7 +924,7 @@ function LauncherCard({
           )}
         </button>
       </div>
-      <div className="relative z-10 mb-2 flex min-w-0 items-center gap-2">
+      <div className={cn("relative z-10 flex min-w-0 items-center gap-2", isCompact ? "mb-1.5" : "mb-2")}>
         <Badge variant={item.status === "Listo" ? "default" : "secondary"}>
           {item.status}
         </Badge>
@@ -985,44 +987,28 @@ function VirtualizedLibraryGrid({
   const metrics = useMemo(() => {
     const paddingX = viewport.width >= 768 ? 20 : 16;
     const paddingY = viewport.width >= 768 ? 20 : 16;
-    const gap = density === "compact" ? 10 : density === "focus" ? 14 : 12;
+    const gap = density === "compact" ? 10 : density === "focus" ? 14 : viewport.width >= 980 ? 12 : 10;
     const availableWidth = Math.max(viewport.width - paddingX * 2, 1);
-    const columns =
-      density === "focus"
-        ? availableWidth >= 1080
-          ? 3
-          : availableWidth >= 620
-            ? 2
-            : 1
-        : density === "compact"
-          ? availableWidth >= 1120
-            ? 4
-            : availableWidth >= 720
-              ? 3
-              : availableWidth >= 500
-                ? 2
-                : 1
-          : availableWidth >= 1240
-            ? 4
-            : availableWidth >= 760
-              ? 3
-              : availableWidth >= 520
-                ? 2
-                : 1;
+    const minCardWidth = density === "focus" ? 276 : density === "compact" ? 188 : 214;
+    const maxColumns = density === "focus" ? 3 : density === "compact" ? 5 : 4;
+    const columns = Math.max(1, Math.min(maxColumns, Math.floor((availableWidth + gap) / (minCardWidth + gap))));
+    const responsiveCompact = columns >= 3 && availableWidth < 1120;
     const cardHeight =
       density === "compact"
         ? viewport.width >= 640
-          ? 132
-          : 124
+          ? 118
+          : 112
         : density === "focus"
           ? viewport.width >= 640
             ? 178
             : 164
-          : viewport.width >= 1280
-            ? 150
-            : viewport.width >= 640
-              ? 156
-              : 148;
+          : responsiveCompact
+            ? 124
+            : viewport.width >= 1280
+              ? 144
+              : viewport.width >= 640
+                ? 136
+                : 128;
     const columnWidth = (availableWidth - gap * (columns - 1)) / columns;
     const rowHeight = cardHeight + gap;
     const rowCount = Math.ceil(items.length / columns);
@@ -1035,6 +1021,7 @@ function VirtualizedLibraryGrid({
       columnWidth,
       rowHeight,
       rowCount,
+      responsiveCompact,
       totalHeight: paddingY * 2 + rowCount * cardHeight + Math.max(rowCount - 1, 0) * gap,
     };
   }, [density, items.length, viewport.width]);
@@ -1089,6 +1076,7 @@ function VirtualizedLibraryGrid({
                 index={localIndex}
                 active={item.id === selectedId}
                 density={density}
+                compactViewport={metrics.responsiveCompact}
                 onSelect={() => onSelect(item.id)}
                 onFavorite={() => onFavorite(item.id)}
               />

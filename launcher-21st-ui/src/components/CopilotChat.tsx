@@ -87,6 +87,58 @@ function findLaunchItem(items: LibraryItem[], target: string) {
   );
 }
 
+function getTypeCounts(items: LibraryItem[]) {
+  return items.reduce<Record<string, number>>((counts, item) => {
+    counts[item.type] = (counts[item.type] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function localBrowserToolResponse(message: string, items: LibraryItem[]) {
+  const query = normalizeText(message);
+  const counts = getTypeCounts(items);
+
+  if (/\b(duplicad|repetid|limpiar)\b/.test(query)) {
+    const groups = new Map<string, LibraryItem[]>();
+    for (const item of items) {
+      const key = normalizeText(item.name)
+        .replace(/\b(single player demo|demo|launcher|shortcut|acceso directo|x64|win64)\b/g, " ")
+        .replace(/\b\d+(\.\d+){1,}\b/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!key || key.length < 3) continue;
+      groups.set(key, [...(groups.get(key) ?? []), item]);
+    }
+    const duplicates = [...groups.values()].filter((group) => group.length > 1).slice(0, 6);
+    if (!duplicates.length) return "En el preview no veo duplicados claros por nombre. En el .exe puedo comparar mejor rutas, fechas y metadata local.";
+    return [
+      `Veo ${duplicates.length} grupos posibles de duplicados en esta biblioteca:`,
+      duplicates.map((group, index) => `${index + 1}. ${group.map((item) => item.name).join(" / ")}`).join("\n"),
+      "No borro ni fusiono nada sin confirmacion; esto es solo diagnostico.",
+    ].join("\n\n");
+  }
+
+  if (/\b(organiza|organizar|clasifica|categorias|ordenar|separa)\b/.test(query)) {
+    return [
+      "Organizacion base que encaja con tu biblioteca:",
+      `Juego: ${counts.Juego ?? 0}`,
+      `Programa: ${counts.Programa ?? 0}`,
+      `Proyecto: ${counts.Proyecto ?? 0}`,
+      `Sistema: ${counts.Sistema ?? 0}`,
+      `Archivo: ${counts.Archivo ?? 0}`,
+      "Despues podemos dividir por Desarrollo, Launchers, Juegos instalados, Proyectos activos, Multimedia y Sistema.",
+    ].join("\n");
+  }
+
+  if (/\b(resumen|analiza|analisis|biblioteca|estado actual|que tengo)\b/.test(query)) {
+    const ready = items.filter((item) => item.status === "Listo").length;
+    const review = items.filter((item) => item.status === "Sin revisar").length;
+    return `Tu biblioteca tiene ${items.length} accesos: ${counts.Juego ?? 0} juegos, ${counts.Programa ?? 0} programas, ${counts.Proyecto ?? 0} proyectos, ${counts.Sistema ?? 0} sistema y ${counts.Archivo ?? 0} archivos. Estado: ${ready} listos y ${review} sin revisar.`;
+  }
+
+  return "";
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
   return new Promise<T>((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
@@ -185,13 +237,14 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
         return;
       }
 
+      const browserToolContent = window.nexus?.chatWithAi ? "" : localBrowserToolResponse(text, items);
       const response = window.nexus?.chatWithAi
         ? await withTimeout(
             window.nexus.chatWithAi({ message: text, items }),
             aiUiTimeoutMs,
             "La IA tardo demasiado en responder. Corte la espera para que el chat no se quede pensando infinito.",
           )
-        : { ok: false, content: localPreviewResponse(items) };
+        : { ok: false, content: browserToolContent || localPreviewResponse(items) };
       setMessages((current) => [
         ...current,
         {

@@ -500,6 +500,238 @@ function compactLibraryContext(items, message = "") {
   }));
 }
 
+function normalizeCopilotQuery(value) {
+  return normalizeAiText(value)
+    .replace(/\b(dime|haz|hacer|puedes|puedo|quiero|necesito|porfa|porfavor|por favor|wey|bro|loco|nexus|copilot)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function groupItemsByType(items) {
+  return (Array.isArray(items) ? items : []).reduce((groups, item) => {
+    const type = item?.type || "Archivo";
+    groups[type] = (groups[type] || 0) + 1;
+    return groups;
+  }, {});
+}
+
+function formatDuration(seconds) {
+  const safeSeconds = Math.max(0, Number(seconds || 0));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  if (hours && minutes) return `${hours} h ${minutes} min`;
+  if (hours) return `${hours} h`;
+  if (minutes) return `${minutes} min`;
+  return `${safeSeconds}s`;
+}
+
+function parseSizeToBytes(size) {
+  if (typeof size !== "string") return 0;
+  const match = size.replace(",", ".").match(/([\d.]+)\s*(b|kb|mb|gb|tb)/i);
+  if (!match) return 0;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value)) return 0;
+  const units = { b: 1, kb: 1024, mb: 1024 ** 2, gb: 1024 ** 3, tb: 1024 ** 4 };
+  return value * (units[match[2].toLowerCase()] || 1);
+}
+
+function normalizedDuplicateName(item) {
+  return normalizeAiText(item?.name || "")
+    .replace(/\b(single player demo|demo|launcher|shortcut|acceso directo|x64|win64)\b/g, " ")
+    .replace(/\b\d+(\.\d+){1,}\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function bulletLines(entries, formatter, emptyText) {
+  if (!entries.length) return emptyText;
+  return entries.map((entry, index) => `${index + 1}. ${formatter(entry)}`).join("\n");
+}
+
+function summarizeLibrary(items) {
+  const list = Array.isArray(items) ? items : [];
+  const groups = groupItemsByType(list);
+  const ready = list.filter((item) => item.status === "Listo").length;
+  const review = list.filter((item) => item.status === "Sin revisar").length;
+  const favorites = list.filter((item) => item.favorite).length;
+  return [
+    `Tu biblioteca tiene ${list.length} accesos: ${groups.Juego || 0} juegos, ${groups.Programa || 0} programas, ${groups.Proyecto || 0} proyectos, ${groups.Sistema || 0} sistema y ${groups.Archivo || 0} archivos.`,
+    `Estado real ahora: ${ready} listos, ${review} sin revisar y ${favorites} favoritos.`,
+    "Lo que puedo hacer localmente sin esperar al modelo: detectar duplicados, separar por tipo, ver rutas sin revisar, revisar archivos grandes, resumir uso real registrado y explicar que datos son medibles.",
+  ].join("\n\n");
+}
+
+function summarizeDuplicates(items) {
+  const buckets = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const key = normalizedDuplicateName(item);
+    if (!key || key.length < 3) continue;
+    const current = buckets.get(key) || [];
+    current.push(item);
+    buckets.set(key, current);
+  }
+  const duplicateGroups = [...buckets.values()]
+    .filter((group) => group.length > 1)
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 8);
+
+  if (!duplicateGroups.length) {
+    return "No veo duplicados claros por nombre normalizado. Ojo: esto no borra nada; solo compara nombres parecidos y rutas.";
+  }
+
+  return [
+    `Encontre ${duplicateGroups.length} grupos con posibles duplicados. No los borro automaticamente porque primero hay que confirmar rutas.`,
+    bulletLines(
+      duplicateGroups,
+      (group) => {
+        const names = group.map((item) => item.name).join(" / ");
+        const locations = group.map((item) => item.location || item.realPath || "sin ruta").slice(0, 3).join(" | ");
+        return `${names} -> ${locations}`;
+      },
+      "",
+    ),
+    "Siguiente paso recomendado: abrir un panel de limpieza que compare ruta, tipo, tamano y fecha antes de fusionar.",
+  ].join("\n\n");
+}
+
+function summarizeOrganization(items) {
+  const list = Array.isArray(items) ? items : [];
+  const groups = ["Juego", "Programa", "Proyecto", "Sistema", "Archivo"].map((type) => {
+    const entries = list.filter((item) => item.type === type);
+    const examples = entries.slice(0, 5).map((item) => item.name).join(", ") || "sin ejemplos";
+    return `${type}: ${entries.length} accesos. Ejemplos: ${examples}.`;
+  });
+  return [
+    "Te propongo esta organizacion base para que el launcher se sienta limpio y no mezclado:",
+    groups.join("\n"),
+    "Despues podemos crear subgrupos locales: Desarrollo, Launchers, Juegos instalados, Proyectos activos, Multimedia, Documentos y Sistema.",
+  ].join("\n\n");
+}
+
+function summarizeReviewQueue(items) {
+  const list = Array.isArray(items) ? items : [];
+  const review = list
+    .filter((item) => item.status !== "Listo" || !item.location || item.playtime === "Sin seguimiento")
+    .slice(0, 12);
+  return [
+    `${review.length ? `Estos son los primeros ${review.length}` : "No encontre accesos urgentes"} para revisar:`,
+    bulletLines(
+      review,
+      (item) => `${item.name} (${item.type}) - estado: ${item.status || "sin estado"} - ruta: ${item.location || "sin ruta"}`,
+      "Todo lo principal parece listo. Quedaria revisar metadata fina como version, icono y fuente.",
+    ),
+    "Esto no inventa horas ni uso: si no hay seguimiento real, lo marco como sin seguimiento.",
+  ].join("\n\n");
+}
+
+function summarizeSizes(items) {
+  const sizedItems = (Array.isArray(items) ? items : [])
+    .map((item) => ({ item, bytes: parseSizeToBytes(item.size) }))
+    .filter((entry) => entry.bytes > 0)
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, 10);
+  return [
+    "Los accesos mas pesados que puedo comparar con metadata local son:",
+    bulletLines(
+      sizedItems,
+      ({ item }) => `${item.name} (${item.type}) - ${item.size}`,
+      "Ahora mismo no tengo tamanos medibles suficientes. Cuando importes archivos/carpetas con analisis local, esta lista sera mas util.",
+    ),
+  ].join("\n\n");
+}
+
+async function summarizeUsage(items) {
+  const stats = await readUsageStats();
+  const usageRows = Object.values(stats)
+    .filter((entry) => Number(entry?.totalSeconds || 0) > 0)
+    .sort((a, b) => Number(b.totalSeconds || 0) - Number(a.totalSeconds || 0))
+    .slice(0, 10);
+
+  if (!usageRows.length) {
+    return "Todavia no hay tiempo de uso real registrado. El contador solo puede ser real cuando abres una app desde Nexus y puedo detectar el proceso en Windows; no voy a inventar horas.";
+  }
+
+  const itemById = new Map((Array.isArray(items) ? items : []).map((item) => [item.id, item]));
+  return [
+    "Tiempo de uso real registrado desde Nexus:",
+    bulletLines(
+      usageRows,
+      (entry) => {
+        const item = itemById.get(entry.itemId);
+        const name = item?.name || entry.name || entry.itemId;
+        return `${name} - ${formatDuration(entry.totalSeconds)} en ${entry.sessions || 1} sesiones`;
+      },
+      "",
+    ),
+  ].join("\n\n");
+}
+
+async function summarizePcSnapshot() {
+  const snapshot = await getSystemSnapshot();
+  const memoryPercent = snapshot.totalMemory
+    ? Math.round((snapshot.usedMemory / snapshot.totalMemory) * 100)
+    : 0;
+  return [
+    "Analisis rapido de tu PC desde Electron:",
+    `CPU: ${snapshot.cpuModel} (${snapshot.cpuCores} nucleos).`,
+    `RAM: ${Math.round(snapshot.usedMemory / 1024 ** 3)} GB usados de ${Math.round(snapshot.totalMemory / 1024 ** 3)} GB (${memoryPercent}%).`,
+    `Windows: ${snapshot.platform} ${snapshot.release} ${snapshot.arch}.`,
+    `Datos locales de Nexus: ${snapshot.appDataDir}`,
+  ].join("\n");
+}
+
+async function runLocalCopilotTool(payload) {
+  const message = typeof payload?.message === "string" ? payload.message : "";
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const query = normalizeCopilotQuery(message);
+  if (!query) return null;
+
+  const wantsDuplicates = /\b(duplicad|repetid|fusionar|limpiar repetidos)\b/.test(query);
+  const wantsOrganization = /\b(organiza|organizar|clasifica|clasificar|ordenar|separa|categorias|categorizar)\b/.test(query);
+  const wantsUsage = /\b(uso|tiempo|horas|seguimiento|sesiones|cuanto uso)\b/.test(query);
+  const wantsReview = /\b(revisa|revision|sin revisar|rutas|errores|validar|faltan|incomplet)\b/.test(query);
+  const wantsSizes = /\b(pesad|tamano|tamaño|espacio|gb|mb|grande)\b/.test(query);
+  const wantsPc = /\b(pc|computadora|equipo|cpu|gpu|ram|memoria|windows|sistema)\b/.test(query);
+  const wantsSummary = /\b(resumen|analiza|analisis|biblioteca|launcher|estado actual|que tengo)\b/.test(query);
+
+  let content = null;
+  let toolName = "";
+  if (wantsDuplicates) {
+    content = summarizeDuplicates(items);
+    toolName = "duplicates";
+  } else if (wantsOrganization) {
+    content = summarizeOrganization(items);
+    toolName = "organization";
+  } else if (wantsUsage) {
+    content = await summarizeUsage(items);
+    toolName = "usage";
+  } else if (wantsReview) {
+    content = summarizeReviewQueue(items);
+    toolName = "review";
+  } else if (wantsSizes) {
+    content = summarizeSizes(items);
+    toolName = "sizes";
+  } else if (wantsPc) {
+    content = await summarizePcSnapshot();
+    toolName = "system";
+  } else if (wantsSummary) {
+    content = summarizeLibrary(items);
+    toolName = "library";
+  }
+
+  if (!content) return null;
+  const memory = await readAiMemory();
+  const userMessage = createUserMessage(message);
+  const nextMemory = await rememberExchange(memory, userMessage, content);
+  return {
+    ok: true,
+    provider: "nexus-local",
+    model: toolName,
+    content,
+    remembered: nextMemory.facts.length,
+  };
+}
+
 function getOutputText(response) {
   if (typeof response.output_text === "string" && response.output_text.trim()) {
     return response.output_text.trim();
@@ -774,6 +1006,9 @@ async function callLmStudio({ message, items }) {
 }
 
 async function callAi(payload) {
+  const localToolResponse = await runLocalCopilotTool(payload);
+  if (localToolResponse) return localToolResponse;
+
   const settings = await readAiSettings();
   if (settings.provider === "openai") {
     const openAiResponse = await callOpenAi(payload);
