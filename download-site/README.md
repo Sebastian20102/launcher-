@@ -1,8 +1,13 @@
 # Nexus Launcher Download Site
 
-Static download page for Nexus Launcher.
+React/Vite download page for Nexus Launcher.
 
-Open `index.html` directly, or deploy this folder to GitHub Pages/Netlify.
+Run locally:
+
+```powershell
+npm install
+npm run dev
+```
 
 Main CTA points to:
 

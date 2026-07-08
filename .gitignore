@@ -6,6 +6,7 @@ node_modules/
 dist/
 **/dist/
 .vite/
+*.tsbuildinfo
 
 # Desktop build outputs
 release/
