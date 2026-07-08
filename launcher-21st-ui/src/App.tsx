@@ -173,6 +173,36 @@ const defaultLauncherAppearance: LauncherAppearance = {
   savedPresets: [],
 };
 
+const appearanceProfiles: Array<{ name: string; description: string; appearance: Omit<LauncherAppearance, "savedPresets"> }> = [
+  {
+    name: "Studio",
+    description: "Limpio, oscuro y legible para trabajar.",
+    appearance: {
+      background: { ...defaultLauncherBackground, opacity: 0.42, dim: 0.5, blur: 0 },
+      density: "comfort",
+      glass: 0.68,
+    },
+  },
+  {
+    name: "Gallery",
+    description: "Fondos con mas presencia visual.",
+    appearance: {
+      background: { ...backgroundPresets[2], opacity: 0.74, dim: 0.28, blur: 0 },
+      density: "focus",
+      glass: 0.58,
+    },
+  },
+  {
+    name: "Compact",
+    description: "Mas accesos visibles y menos ruido.",
+    appearance: {
+      background: { ...backgroundPresets[1], opacity: 0.38, dim: 0.56, blur: 2 },
+      density: "compact",
+      glass: 0.74,
+    },
+  },
+];
+
 function App() {
   const [items, setItems] = useState<LibraryItem[]>(seedLibrary);
   const [query, setQuery] = useState("");
@@ -2113,6 +2143,44 @@ function CustomizationDialog({
     });
   }
 
+  function applyAppearanceProfile(profile: (typeof appearanceProfiles)[number]) {
+    onChange({
+      ...appearance,
+      ...profile.appearance,
+      background: profile.appearance.background,
+    });
+  }
+
+  function exportAppearance() {
+    const payload = JSON.stringify(appearance, null, 2);
+    void navigator.clipboard?.writeText(payload);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "nexus-appearance.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importAppearance(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as Partial<LauncherAppearance>;
+      onChange({
+        ...defaultLauncherAppearance,
+        ...parsed,
+        background: { ...defaultLauncherBackground, ...parsed.background },
+        savedPresets: Array.isArray(parsed.savedPresets) ? parsed.savedPresets : appearance.savedPresets,
+      });
+    } catch {
+      window.alert("No pude importar ese archivo de apariencia.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   function handleUrlChange(value: string) {
     const cleanValue = value.trim();
     const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(cleanValue);
@@ -2175,6 +2243,45 @@ function CustomizationDialog({
             </DialogHeader>
 
             <div className="grid gap-4">
+              <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Perfiles completos
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Cambian densidad, glass y lectura del fondo juntos.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" onClick={exportAppearance}>
+                      <Download className="mr-2 size-4" />
+                      Exportar
+                    </Button>
+                    <label className="inline-flex">
+                      <input type="file" accept="application/json,.json" className="sr-only" onChange={importAppearance} />
+                      <span className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-white/10 bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80">
+                        <Upload className="mr-2 size-4" />
+                        Importar
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {appearanceProfiles.map((profile) => (
+                    <button
+                      key={profile.name}
+                      type="button"
+                      onClick={() => applyAppearanceProfile(profile)}
+                      className="rounded-2xl border border-white/10 bg-black/25 p-4 text-left transition-colors hover:bg-white/[0.075]"
+                    >
+                      <div className="font-semibold">{profile.name}</div>
+                      <div className="mt-1 text-xs leading-5 text-muted-foreground">{profile.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <label className="group flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-white/[0.045] p-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-colors hover:bg-white/[0.075]">
                 <Upload className="mb-3 size-6 text-white/80" />
                 <span className="text-sm font-semibold">Subir wallpaper local</span>
