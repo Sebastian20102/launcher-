@@ -775,16 +775,15 @@ function App() {
         <CopilotLauncherBackdrop background={launcherBackground} />
         <div className="nexus-fluid-resize relative z-10 grid h-screen grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
           <header
-            className={cn("grid items-center gap-5 border-b border-white/10 bg-white/[0.055] px-4 py-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl md:px-6", isDesktop() && "app-drag")}
-            style={{ gridTemplateColumns: "48px minmax(300px, 620px) minmax(0, 1fr)" }}
+            className={cn("nexus-shell-header border-b border-white/10 bg-white/[0.055] shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl", isDesktop() && "app-drag")}
           >
             <div className="flex min-w-0 items-center">
-              <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.075] shadow-[0_16px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] md:size-11">
+              <div className="nexus-shell-logo grid shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.075] shadow-[0_16px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]">
                 <Layers3 className="size-5 text-primary" />
               </div>
             </div>
 
-            <div className={cn("relative z-10 mx-auto flex w-full max-w-[620px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] px-4 py-2.5 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl", isDesktop() && "app-no-drag")}>
+            <div className={cn("nexus-shell-search relative z-10 flex w-full items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl", isDesktop() && "app-no-drag")}>
               <Search className="size-4" />
               <input
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -797,7 +796,7 @@ function App() {
               </kbd>
             </div>
 
-            <div className={cn("relative z-20 flex max-w-full items-center justify-start gap-2 overflow-x-auto", isDesktop() && "app-no-drag")}>
+            <div className={cn("nexus-shell-actions relative z-20 flex max-w-full items-center overflow-x-auto", isDesktop() && "app-no-drag")}>
               <HeaderIconButton label="Panel" icon={AppWindow} onClick={() => setScreen("desktop")} />
               <HeaderIconButton label="Notas" icon={FileText} onClick={() => setScreen("notes")} />
               <HeaderIconButton label="PC" icon={Cpu} onClick={() => setScreen("system")} />

@@ -95,6 +95,42 @@ body {
   --nexus-glass: 0.62;
 }
 
+.nexus-shell-header {
+  display: grid;
+  grid-template-columns:
+    clamp(2.75rem, 3.2vw, 3.5rem)
+    minmax(clamp(20rem, 38vw, 46rem), clamp(20rem, 42vw, 46rem))
+    minmax(0, 1fr);
+  align-items: center;
+  column-gap: clamp(1.25rem, 2.2vw, 3rem);
+  padding: clamp(0.7rem, 1vw, 1rem) clamp(1rem, 2.2vw, 2.25rem);
+}
+
+.nexus-shell-logo {
+  width: clamp(2.5rem, 2.8vw, 3.15rem);
+  height: clamp(2.5rem, 2.8vw, 3.15rem);
+}
+
+.nexus-shell-search {
+  max-width: clamp(20rem, 42vw, 46rem);
+  min-height: clamp(2.75rem, 3vw, 3.25rem);
+  padding: 0 clamp(0.9rem, 1.1vw, 1.25rem);
+  justify-self: center;
+}
+
+.nexus-shell-actions {
+  justify-self: end;
+  justify-content: flex-end;
+  gap: clamp(0.45rem, 0.75vw, 0.85rem);
+  padding-left: clamp(1.25rem, 2vw, 2.5rem);
+}
+
+.nexus-shell-actions > button,
+.nexus-shell-actions [role="button"] {
+  width: clamp(2.35rem, 2.55vw, 2.85rem);
+  height: clamp(2.35rem, 2.55vw, 2.85rem);
+}
+
 .nexus-fluid-resize header,
 .nexus-fluid-resize footer {
   background-color: rgb(255 255 255 / calc(var(--nexus-glass) * 0.085));
@@ -131,6 +167,29 @@ body {
       opacity,
       transform;
     transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (max-width: 980px) {
+  .nexus-shell-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "logo actions"
+      "search search";
+    row-gap: 0.75rem;
+  }
+
+  .nexus-shell-header > :nth-child(1) {
+    grid-area: logo;
+  }
+
+  .nexus-shell-search {
+    grid-area: search;
+    max-width: none;
+  }
+
+  .nexus-shell-actions {
+    grid-area: actions;
   }
 }
 
