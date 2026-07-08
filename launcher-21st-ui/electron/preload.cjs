@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("nexus", {
   loadNotes: () => ipcRenderer.invoke("notes:load"),
   saveNotes: (notes) => ipcRenderer.invoke("notes:save", notes),
   getSystemSnapshot: () => ipcRenderer.invoke("system:snapshot"),
+  exportLocalReport: () => ipcRenderer.invoke("system:exportReport"),
   loadUsageStats: () => ipcRenderer.invoke("usage:load"),
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
   maximizeWindow: () => ipcRenderer.invoke("window:maximize"),

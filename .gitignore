@@ -33,6 +33,7 @@ launcher-21st-ui/public/app-icons/
 # Legacy/local experiments kept on this PC but not in the production repo
 NexusLauncherWpf/
 prototipos_launcher/
+lumina-app/
 desktop_launcher.py
 pc_launcher.py
 requirements-desktop.txt

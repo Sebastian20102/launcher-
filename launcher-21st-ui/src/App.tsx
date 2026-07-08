@@ -87,9 +87,9 @@ import { cn } from "@/lib/utils";
 import type { NexusNote, SystemSnapshot, UsageStats } from "@/types/electron";
 
 const filters = ["Todo", "Juego", "Programa", "Proyecto", "Sistema", "Archivo"];
-const launcherAppearanceStorageKey = "nexus-launcher-appearance-preview";
+const launcherAppearanceStorageKey = "nexus-launcher-appearance";
 const legacyLauncherBackgroundStorageKey = "nexus-launcher-background-preview";
-const notesStorageKey = "nexus-launcher-notes-preview";
+const notesStorageKey = "nexus-launcher-notes";
 const appleEase = [0.22, 1, 0.36, 1] as const;
 const appleSpring = {
   type: "spring",
@@ -275,8 +275,8 @@ function App() {
       window.nexus.getSystemSnapshot().then(setSystemSnapshot).catch(() => setNotice("No pude analizar la PC"));
       return;
     }
-    setSystemSnapshot({
-      hostname: "Preview",
+      setSystemSnapshot({
+        hostname: "Navegador",
       platform: navigator.platform || "browser",
       release: "Navegador",
       arch: "No disponible",
@@ -296,6 +296,10 @@ function App() {
   useEffect(() => {
     if (!window.nexus?.loadUsageStats) return;
     window.nexus.loadUsageStats().then(setUsageStats).catch(() => setUsageStats({}));
+    const timer = window.setInterval(() => {
+      window.nexus?.loadUsageStats().then(setUsageStats).catch(() => {});
+    }, 30000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const filteredItems = useMemo(() => {
@@ -357,6 +361,7 @@ function App() {
       type: analyzedItem.type,
       status: analyzedItem.status,
       location: analyzedItem.location,
+      realPath: analyzedItem.realPath,
       lastUsed: analyzedItem.lastUsed,
       description: analyzedItem.description,
       icon: analyzedItem.icon,
@@ -415,7 +420,7 @@ function App() {
     }
     setActionStatus("opening");
     setNotice(`Abriendo ${selected.name}...`);
-    const result = await window.nexus.openPath(selected.location, { itemId: selected.id, name: selected.name });
+    const result = await window.nexus.openPath(selected.realPath || selected.location, { itemId: selected.id, name: selected.name });
     if (result.ok && window.nexus.loadUsageStats) {
       window.setTimeout(() => {
         window.nexus?.loadUsageStats().then(setUsageStats).catch(() => {});
@@ -430,7 +435,7 @@ function App() {
       setNotice("Para revelar carpetas reales usa npm run desktop");
       return;
     }
-    const result = await window.nexus.revealPath(selected.location);
+    const result = await window.nexus.revealPath(selected.realPath || selected.location);
     setNotice(result.ok ? "Ubicacion abierta" : result.message ?? "No se pudo revelar");
   }
 
@@ -441,7 +446,7 @@ function App() {
     }
     setActionStatus("validating");
     setNotice(`Validando ${selected.name}...`);
-    const exists = await window.nexus.validatePath(selected.location);
+    const exists = await window.nexus.validatePath(selected.realPath || selected.location);
     const status: LibraryItem["status"] = exists ? "Listo" : "Sin revisar";
     const nextItems = items.map((item) =>
       item.id === selected.id
@@ -538,6 +543,15 @@ function App() {
     setNotice("Analisis de PC actualizado");
   }
 
+  async function exportLocalReport() {
+    if (!window.nexus?.exportLocalReport) {
+      setNotice("Exportar reporte local esta disponible en la app de escritorio");
+      return;
+    }
+    const result = await window.nexus.exportLocalReport();
+    setNotice(result.ok ? `Reporte exportado: ${result.path}` : result.message ?? "No se exporto el reporte");
+  }
+
   if (screen === "cleanup") {
     return (
       <TooltipProvider>
@@ -619,7 +633,7 @@ function App() {
             icon={Cpu}
             onBack={() => setScreen("library")}
           />
-          <SystemAnalysis snapshot={systemSnapshot} onRefresh={refreshSystemSnapshot} />
+          <SystemAnalysis snapshot={systemSnapshot} onRefresh={refreshSystemSnapshot} onExport={exportLocalReport} />
         </motion.main>
       </TooltipProvider>
     );
@@ -1024,7 +1038,7 @@ function App() {
               />
             </div>
             <div className="hidden items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground lg:flex">
-              Nexus Core Preview
+              Nexus Core
             </div>
           </footer>
         </div>
@@ -1896,9 +1910,11 @@ function formatUsageDuration(seconds: number) {
 function SystemAnalysis({
   snapshot,
   onRefresh,
+  onExport,
 }: {
   snapshot: SystemSnapshot | null;
   onRefresh: () => void;
+  onExport: () => void;
 }) {
   return (
     <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
@@ -1913,10 +1929,16 @@ function SystemAnalysis({
                   Primer modulo de diagnostico. Lee datos locales basicos del sistema sin subir informacion a internet.
                 </p>
               </div>
-              <Button onClick={onRefresh}>
-                <RotateCcw className="mr-2 size-4" />
-                Actualizar
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={onExport}>
+                  <Download className="mr-2 size-4" />
+                  Exportar reporte
+                </Button>
+                <Button onClick={onRefresh}>
+                  <RotateCcw className="mr-2 size-4" />
+                  Actualizar
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -2238,7 +2260,7 @@ function CustomizationDialog({
               </div>
               <DialogTitle className="text-2xl">Personalizacion visual</DialogTitle>
               <DialogDescription>
-                Prueba wallpapers estaticos, GIFs o video sin salir del preview.
+                Prueba wallpapers estaticos, GIFs o video sin salir del launcher.
               </DialogDescription>
             </DialogHeader>
 
@@ -2405,7 +2427,7 @@ function CustomizationDialog({
               )}
               <div className="absolute inset-0 bg-black" style={{ opacity: background.dim }} />
               <div className="absolute bottom-3 left-3 right-3 rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-2 text-xs text-white backdrop-blur-xl">
-                Glass readability preview
+                Vista de legibilidad glass
               </div>
             </div>
 

@@ -3,6 +3,7 @@ import type { LibraryItem, PathAnalysis } from "@/lib/library";
 export type NativeResult = {
   ok: boolean;
   message?: string;
+  path?: string;
 };
 
 export type AiChatResponse = {
@@ -78,6 +79,7 @@ declare global {
       loadNotes: () => Promise<NexusNote[]>;
       saveNotes: (notes: NexusNote[]) => Promise<NexusNote[]>;
       getSystemSnapshot: () => Promise<SystemSnapshot>;
+      exportLocalReport: () => Promise<NativeResult>;
       loadUsageStats: () => Promise<UsageStats>;
       minimizeWindow: () => Promise<void>;
       maximizeWindow: () => Promise<void>;

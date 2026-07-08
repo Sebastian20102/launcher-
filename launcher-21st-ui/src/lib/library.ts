@@ -13,6 +13,7 @@ import {
 
 export type PathAnalysis = {
   path: string;
+  realPath?: string | null;
   exists: boolean;
   isDirectory: boolean;
   extension: string;
@@ -260,6 +261,7 @@ export function createItemFromAnalysis(analysis: PathAnalysis, fallbackType: Lib
     vendor: "Local",
     status: analysis.exists ? "Listo" : "Sin revisar",
     location: analysis.path,
+    realPath: analysis.realPath || undefined,
     lastUsed: fileModified || "Nuevo",
     playtime: "Sin seguimiento",
     description: analysis.description || buildDescription(inferredType, extension, analysis.isDirectory),

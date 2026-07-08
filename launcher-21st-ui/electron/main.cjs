@@ -323,6 +323,47 @@ async function getSystemSnapshot() {
   };
 }
 
+async function exportLocalReport() {
+  const [items, usageStats, notes, systemSnapshot] = await Promise.all([
+    readLibrary(),
+    readUsageStats(),
+    readNotes(),
+    getSystemSnapshot(),
+  ]);
+  const report = {
+    generatedAt: new Date().toISOString(),
+    appDataDir: app.getPath("userData"),
+    system: systemSnapshot,
+    library: {
+      total: items.length,
+      byType: items.reduce((acc, item) => {
+        const type = item.type || "Sin tipo";
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {}),
+      missing: items.filter((item) => item.status !== "Listo").length,
+      favorites: items.filter((item) => item.favorite).length,
+    },
+    usage: {
+      trackedItems: Object.keys(usageStats).length,
+      totalSeconds: Object.values(usageStats).reduce((sum, row) => sum + Number(row.totalSeconds || 0), 0),
+      stats: usageStats,
+    },
+    notes: {
+      total: notes.length,
+      pinned: notes.filter((note) => note.pinned).length,
+    },
+  };
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Exportar reporte local de Nexus",
+    defaultPath: path.join(app.getPath("documents"), "nexus-local-report.json"),
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (result.canceled || !result.filePath) return { ok: false, message: "Exportacion cancelada" };
+  await fs.writeFile(result.filePath, JSON.stringify(report, null, 2), "utf8");
+  return { ok: true, path: result.filePath };
+}
+
 const imageExtensions = new Set(["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "ico"]);
 const videoExtensions = new Set(["mp4", "webm", "mov", "mkv", "avi", "m4v"]);
 const textExtensions = new Set(["txt", "md", "json", "csv", "log", "xml", "yml", "yaml", "ini", "toml"]);
@@ -373,6 +414,32 @@ function buildAnalysisDescription(type, extension, isDirectory) {
   return "Archivo local detectado desde el sistema.";
 }
 
+function resolveShortcutTarget(targetPath) {
+  if (process.platform !== "win32" || !/\.lnk$/i.test(targetPath || "")) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    execFile(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($args[0]); if ($s.TargetPath) { $s.TargetPath }",
+        targetPath,
+      ],
+      { windowsHide: true },
+      (error, stdout) => {
+        if (error) {
+          resolve(null);
+          return;
+        }
+        const resolved = String(stdout || "").trim();
+        resolve(resolved || null);
+      },
+    );
+  });
+}
+
 async function analyzePath(targetPath) {
   if (!targetPath || typeof targetPath !== "string") return null;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(targetPath)) {
@@ -403,9 +470,12 @@ async function analyzePath(targetPath) {
   }
   const isDirectory = Boolean(stats?.isDirectory());
   const name = cleanAnalysisName(rawName);
-  const inferredType = inferAnalysisType(name, extension, isDirectory);
+  const realPath = await resolveShortcutTarget(targetPath);
+  const realExtension = realPath ? path.extname(realPath).replace(/^\./, "").toLowerCase() : extension;
+  const inferredType = inferAnalysisType(name, realExtension, isDirectory);
   return {
     path: targetPath,
+    realPath,
     exists,
     isDirectory,
     extension,
@@ -413,10 +483,12 @@ async function analyzePath(targetPath) {
     modifiedAt: stats?.mtime ? stats.mtime.toISOString() : null,
     createdAt: stats?.birthtime ? stats.birthtime.toISOString() : null,
     inferredType,
-    icon: inferAnalysisIcon(inferredType, extension),
+    icon: inferAnalysisIcon(inferredType, realExtension),
     name,
-    description: buildAnalysisDescription(inferredType, extension, isDirectory),
-    source: isDirectory ? "Carpeta local" : "Archivo local",
+    description: realPath
+      ? `Acceso directo detectado. Destino real: ${path.basename(realPath)}.`
+      : buildAnalysisDescription(inferredType, extension, isDirectory),
+    source: realPath ? "Acceso directo Windows" : isDirectory ? "Carpeta local" : "Archivo local",
   };
 }
 
@@ -1205,6 +1277,7 @@ ipcMain.handle("ai:clearMemory", async () => writeAiMemory({ messages: [], facts
 ipcMain.handle("notes:load", readNotes);
 ipcMain.handle("notes:save", (_event, notes) => writeNotes(notes));
 ipcMain.handle("system:snapshot", getSystemSnapshot);
+ipcMain.handle("system:exportReport", exportLocalReport);
 ipcMain.handle("usage:load", readUsageStats);
 
 ipcMain.handle("window:minimize", () => {
