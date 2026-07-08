@@ -776,7 +776,7 @@ function App() {
         <div className="nexus-fluid-resize relative z-10 grid h-screen grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
           <header
             className={cn("grid items-center gap-5 border-b border-white/10 bg-white/[0.055] px-4 py-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl md:px-6", isDesktop() && "app-drag")}
-            style={{ gridTemplateColumns: "48px minmax(260px, 520px) minmax(0, 1fr)" }}
+            style={{ gridTemplateColumns: "48px minmax(300px, 620px) minmax(0, 1fr)" }}
           >
             <div className="flex min-w-0 items-center">
               <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.075] shadow-[0_16px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] md:size-11">
@@ -784,7 +784,7 @@ function App() {
               </div>
             </div>
 
-            <div className={cn("relative z-10 mx-auto flex w-full max-w-[520px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] px-4 py-2.5 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl", isDesktop() && "app-no-drag")}>
+            <div className={cn("relative z-10 mx-auto flex w-full max-w-[620px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] px-4 py-2.5 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl", isDesktop() && "app-no-drag")}>
               <Search className="size-4" />
               <input
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -798,30 +798,12 @@ function App() {
             </div>
 
             <div className={cn("relative z-20 flex max-w-full items-center justify-start gap-2 overflow-x-auto", isDesktop() && "app-no-drag")}>
-              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("desktop")}>
-                <AppWindow className="mr-2 size-4" />
-                Panel
-              </Button>
-              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("notes")}>
-                <FileText className="mr-2 size-4" />
-                Notas
-              </Button>
-              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("system")}>
-                <Cpu className="mr-2 size-4" />
-                PC
-              </Button>
-              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("news")}>
-                <Newspaper className="mr-2 size-4" />
-                Noticias
-              </Button>
-              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("cleanup")}>
-                <CheckCircle2 className="mr-2 size-4" />
-                Limpieza
-              </Button>
-              <Button variant="secondary" className="shrink-0 sm:hidden" onClick={() => setScreen("copilot")}>
-                <Sparkles className="mr-2 size-4" />
-                Copilot
-              </Button>
+              <HeaderIconButton label="Panel" icon={AppWindow} onClick={() => setScreen("desktop")} />
+              <HeaderIconButton label="Notas" icon={FileText} onClick={() => setScreen("notes")} />
+              <HeaderIconButton label="PC" icon={Cpu} onClick={() => setScreen("system")} />
+              <HeaderIconButton label="Noticias" icon={Newspaper} onClick={() => setScreen("news")} />
+              <HeaderIconButton label="Limpieza" icon={CheckCircle2} onClick={() => setScreen("cleanup")} />
+              <HeaderIconButton className="sm:hidden" label="Copilot" icon={Sparkles} onClick={() => setScreen("copilot")} />
               <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
                 <DialogTrigger asChild>
                   <Button variant="secondary" size="icon">
@@ -860,14 +842,11 @@ function App() {
                   </Command>
                 </DialogContent>
               </Dialog>
-              <Button variant="secondary" className="shrink-0" onClick={() => setCustomizationOpen(true)}>
-                <Palette className="mr-2 size-4" />
-                Personalizar
-              </Button>
-              <Button variant="secondary" size="icon">
+              <HeaderIconButton label="Personalizar" icon={Palette} onClick={() => setCustomizationOpen(true)} />
+              <Button variant="secondary" size="icon" aria-label="Notificaciones">
                 <Bell className="size-4" />
               </Button>
-              <Button variant="secondary" size="icon">
+              <Button variant="secondary" size="icon" aria-label="Configuracion">
                 <Settings className="size-4" />
               </Button>
               <WindowControls />
@@ -1467,6 +1446,29 @@ function PageHeader({
         <WindowControls />
       </div>
     </header>
+  );
+}
+
+function HeaderIconButton({
+  label,
+  icon: Icon,
+  onClick,
+  className,
+}: {
+  label: string;
+  icon: NexusIcon;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="secondary" size="icon" className={cn("shrink-0", className)} onClick={onClick} aria-label={label}>
+          <Icon className="size-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
