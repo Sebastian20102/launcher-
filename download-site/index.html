@@ -32,7 +32,7 @@
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Launcher local para Windows</p>
-          <h1>Tu biblioteca de juegos, programas y proyectos en un solo lugar.</h1>
+          <h1 class="split-title" data-split-title>Tu biblioteca de juegos, programas y proyectos en un solo lugar.</h1>
           <p class="lead">
             Nexus Launcher organiza accesos locales, abre apps reales desde el escritorio, guarda notas,
             permite wallpapers dinamicos y prepara una IA local para ayudarte sin convertir todo en menus.
@@ -50,7 +50,7 @@
           </div>
         </div>
 
-        <div class="product-frame" aria-label="Vista previa del launcher">
+        <div class="product-frame magnetic-card" data-tilt data-scroll-hero aria-label="Vista previa del launcher">
           <div class="window-bar">
             <span></span><span></span><span></span>
           </div>
@@ -78,28 +78,39 @@
         </div>
       </section>
 
-      <section id="features" class="section">
+      <section class="marquee-section" aria-label="Capacidades Nexus">
+        <div class="marquee-track">
+          <span>Biblioteca local</span>
+          <span>Wallpapers dinamicos</span>
+          <span>Notas con tags</span>
+          <span>IA local opcional</span>
+          <span>Limpieza segura</span>
+          <span>Metadata real</span>
+        </div>
+      </section>
+
+      <section id="features" class="section reveal">
         <div class="section-heading">
           <p class="eyebrow">Alpha funcional</p>
           <h2>Hecho para escritorio, no para depender de un servidor local.</h2>
         </div>
         <div class="feature-grid">
-          <article>
+          <article class="magnetic-card" data-tilt>
             <span>01</span>
             <h3>Biblioteca local</h3>
             <p>Agrega juegos, programas, carpetas, proyectos y archivos. Cada PC guarda su propia biblioteca.</p>
           </article>
-          <article>
+          <article class="magnetic-card" data-tilt>
             <span>02</span>
             <h3>Personalizacion visual</h3>
             <p>Wallpapers, GIFs, video, glass, densidad, perfiles completos e importacion/exportacion de apariencia.</p>
           </article>
-          <article>
+          <article class="magnetic-card" data-tilt>
             <span>03</span>
             <h3>Notas y limpieza</h3>
             <p>Notas con tags, busqueda, filtros, duplicados seguros y reanalisis de metadata local.</p>
           </article>
-          <article>
+          <article class="magnetic-card" data-tilt>
             <span>04</span>
             <h3>IA opcional</h3>
             <p>Preparado para LM Studio, Ollama u OpenAI. La memoria vive localmente en AppData.</p>
@@ -107,7 +118,7 @@
         </div>
       </section>
 
-      <section id="privacy" class="split-section">
+      <section id="privacy" class="split-section reveal">
         <div>
           <p class="eyebrow">Privacidad</p>
           <h2>El repo no trae tus programas, tus iconos ni tu memoria.</h2>
@@ -119,7 +130,7 @@
         </div>
       </section>
 
-      <section id="install" class="section install-card">
+      <section id="install" class="section install-card reveal magnetic-card" data-tilt>
         <p class="eyebrow">Instalacion</p>
         <h2>Descarga desde GitHub Releases.</h2>
         <ol>
@@ -137,6 +148,7 @@
       <span>Nexus Launcher Alpha</span>
       <span>Construido con React, Electron y una obsesion sana por ordenar el escritorio.</span>
     </footer>
+    <div class="scroll-progress" aria-hidden="true"></div>
     <script src="./script.js"></script>
   </body>
 </html>

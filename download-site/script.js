@@ -46,3 +46,60 @@ function draw() {
 resize();
 draw();
 window.addEventListener("resize", resize);
+
+const title = document.querySelector("[data-split-title]");
+if (title) {
+  title.innerHTML = title.textContent
+    .trim()
+    .split(" ")
+    .map((word, index) => `<span class="word" style="animation-delay:${index * 55}ms">${word}&nbsp;</span>`)
+    .join("");
+}
+
+const progress = document.querySelector(".scroll-progress");
+const heroFrame = document.querySelector("[data-scroll-hero]");
+
+function updateScrollEffects() {
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  const ratio = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+  progress.style.width = `${ratio * 100}%`;
+
+  if (heroFrame && window.matchMedia("(min-width: 921px)").matches) {
+    const y = Math.min(window.scrollY, 520);
+    const rotate = 3 - y * 0.012;
+    const lift = y * -0.08;
+    heroFrame.style.transform = `perspective(1000px) translateY(${lift}px) rotateX(${rotate}deg) rotateY(${-4 + y * 0.01}deg)`;
+  }
+}
+
+const revealObserver = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) entry.target.classList.add("in-view");
+    }
+  },
+  { threshold: 0.16 },
+);
+
+document.querySelectorAll(".reveal").forEach((element) => revealObserver.observe(element));
+
+document.querySelectorAll("[data-tilt]").forEach((card) => {
+  card.addEventListener("pointermove", (event) => {
+    if (window.matchMedia("(max-width: 920px)").matches) return;
+    const rect = card.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width - 0.5;
+    const y = (event.clientY - rect.top) / rect.height - 0.5;
+    card.style.transform = `perspective(900px) rotateX(${y * -7}deg) rotateY(${x * 9}deg) translateY(-4px)`;
+  });
+
+  card.addEventListener("pointerleave", () => {
+    card.style.transform = "";
+    updateScrollEffects();
+  });
+});
+
+const marquee = document.querySelector(".marquee-track");
+if (marquee) marquee.innerHTML += marquee.innerHTML;
+
+window.addEventListener("scroll", updateScrollEffects, { passive: true });
+updateScrollEffects();

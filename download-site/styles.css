@@ -19,6 +19,7 @@ body {
   background: radial-gradient(circle at 50% 0%, #202124 0, #050506 38rem);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: hidden;
 }
 
 #motion-grid {
@@ -40,6 +41,17 @@ body {
   border-bottom: 1px solid var(--line);
   background: rgba(5, 5, 6, 0.72);
   backdrop-filter: blur(22px);
+}
+
+.scroll-progress {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 20;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #fff, transparent);
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.7);
 }
 
 .brand,
@@ -129,6 +141,20 @@ h1 {
   line-height: 0.93;
 }
 
+.split-title .word {
+  display: inline-block;
+  transform: translateY(1.1em);
+  opacity: 0;
+  animation: word-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes word-rise {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 h2 {
   margin: 0;
   max-width: 760px;
@@ -208,6 +234,9 @@ h3 {
   overflow: hidden;
   border-radius: 1.5rem;
   transform: perspective(1000px) rotateX(3deg) rotateY(-4deg);
+  transform-style: preserve-3d;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  will-change: transform;
 }
 
 .window-bar {
@@ -290,6 +319,56 @@ h3 {
   padding: 5rem 0;
 }
 
+.reveal {
+  transform: translateY(44px);
+  opacity: 0;
+  transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 900ms ease;
+}
+
+.reveal.in-view {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.marquee-section {
+  overflow: hidden;
+  border-block: 1px solid var(--line);
+  margin: 1rem 0 3rem;
+  padding: 1rem 0;
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 2.6rem;
+  animation: marquee 26s linear infinite;
+  color: var(--muted);
+  font-size: clamp(1.1rem, 3vw, 2.2rem);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.marquee-track span {
+  position: relative;
+}
+
+.marquee-track span::after {
+  content: "";
+  position: absolute;
+  right: -1.45rem;
+  top: 50%;
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 .section-heading {
   margin-bottom: 2rem;
 }
@@ -305,6 +384,22 @@ h3 {
 .glass-list {
   border-radius: 1.4rem;
   padding: 1.4rem;
+}
+
+.magnetic-card {
+  transform-style: preserve-3d;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  will-change: transform;
+}
+
+.magnetic-card:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.feature-grid article > *,
+.install-card > * {
+  transform: translateZ(24px);
 }
 
 .feature-grid span {
@@ -382,5 +477,16 @@ footer {
 
   .feature-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
