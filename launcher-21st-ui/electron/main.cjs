@@ -37,6 +37,10 @@ function notesPath() {
   return path.join(app.getPath("userData"), "notes.json");
 }
 
+function newsCachePath() {
+  return path.join(app.getPath("userData"), "news-cache.json");
+}
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -191,6 +195,97 @@ async function writeNotes(notes) {
     : [];
   await fs.writeFile(file, JSON.stringify(safeNotes, null, 2), "utf8");
   return safeNotes;
+}
+
+const defaultNewsFeeds = [
+  { id: "steam", title: "Steam News", category: "Gaming PC", url: "https://store.steampowered.com/feeds/news.xml" },
+  { id: "github", title: "GitHub Blog", category: "Desarrollo", url: "https://github.blog/feed/" },
+  { id: "windows", title: "Windows Blog", category: "Hardware", url: "https://blogs.windows.com/feed/" },
+  { id: "node", title: "Node.js Blog", category: "Desarrollo", url: "https://nodejs.org/en/feed/blog.xml" },
+];
+
+function decodeXmlText(value) {
+  return String(value || "")
+    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function pickXmlValue(block, tag) {
+  const match = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return decodeXmlText(match?.[1] || "");
+}
+
+function parseRssItems(xml, feed) {
+  const itemBlocks = String(xml || "").match(/<item[\s\S]*?<\/item>/gi) || String(xml || "").match(/<entry[\s\S]*?<\/entry>/gi) || [];
+  return itemBlocks.slice(0, 8).map((block, index) => {
+    const title = pickXmlValue(block, "title") || `${feed.title} update`;
+    const link = pickXmlValue(block, "link") || block.match(/<link[^>]+href=["']([^"']+)["']/i)?.[1] || feed.url;
+    const summary = pickXmlValue(block, "description") || pickXmlValue(block, "summary") || pickXmlValue(block, "content") || "Sin resumen disponible.";
+    const publishedAt = pickXmlValue(block, "pubDate") || pickXmlValue(block, "updated") || pickXmlValue(block, "published") || null;
+    return {
+      id: `${feed.id}-${Buffer.from(`${title}-${index}`).toString("base64url").slice(0, 16)}`,
+      title,
+      summary: summary.slice(0, 260),
+      url: link,
+      source: feed.title,
+      category: feed.category,
+      publishedAt,
+    };
+  });
+}
+
+function inferNewsFeeds(items = []) {
+  const lower = items.map((item) => `${item.name || ""} ${item.type || ""}`.toLowerCase()).join(" ");
+  return defaultNewsFeeds.filter((feed) => {
+    if (feed.category === "Gaming PC") return /\b(juego|steam|gog|battle|epic|riot|game)\b/.test(lower);
+    if (feed.category === "Desarrollo") return /\b(proyecto|code|git|node|python|unreal|cursor|visual)\b/.test(lower);
+    return true;
+  });
+}
+
+async function readNewsCache() {
+  const file = newsCachePath();
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  if (!fsSync.existsSync(file)) {
+    const empty = { updatedAt: null, feeds: defaultNewsFeeds, items: [] };
+    await fs.writeFile(file, JSON.stringify(empty, null, 2), "utf8");
+    return empty;
+  }
+  try {
+    const parsed = JSON.parse((await fs.readFile(file, "utf8")).replace(/^\uFEFF/, ""));
+    return {
+      updatedAt: parsed.updatedAt || null,
+      feeds: Array.isArray(parsed.feeds) ? parsed.feeds : defaultNewsFeeds,
+      items: Array.isArray(parsed.items) ? parsed.items : [],
+    };
+  } catch {
+    return { updatedAt: null, feeds: defaultNewsFeeds, items: [] };
+  }
+}
+
+async function refreshNews(items = []) {
+  const feeds = inferNewsFeeds(items);
+  const fetched = [];
+  const errors = [];
+  for (const feed of feeds) {
+    try {
+      const response = await fetchWithTimeout(feed.url, { headers: { "User-Agent": "NexusLauncher/0.1" } }, 9000);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      fetched.push(...parseRssItems(await response.text(), feed));
+    } catch (error) {
+      errors.push(`${feed.title}: ${error?.message || error}`);
+    }
+  }
+  const cache = { updatedAt: new Date().toISOString(), feeds, items: fetched.slice(0, 32), errors };
+  await fs.writeFile(newsCachePath(), JSON.stringify(cache, null, 2), "utf8");
+  return cache;
 }
 
 async function readUsageStats() {
@@ -1276,6 +1371,8 @@ ipcMain.handle("ai:chat", async (_event, payload) => callAi(payload || {}));
 ipcMain.handle("ai:clearMemory", async () => writeAiMemory({ messages: [], facts: [] }));
 ipcMain.handle("notes:load", readNotes);
 ipcMain.handle("notes:save", (_event, notes) => writeNotes(notes));
+ipcMain.handle("news:load", readNewsCache);
+ipcMain.handle("news:refresh", (_event, items) => refreshNews(items));
 ipcMain.handle("system:snapshot", getSystemSnapshot);
 ipcMain.handle("system:exportReport", exportLocalReport);
 ipcMain.handle("usage:load", readUsageStats);

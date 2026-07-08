@@ -61,6 +61,23 @@ export type UsageStats = Record<
   }
 >;
 
+export type NewsFeedItem = {
+  id: string;
+  title: string;
+  summary: string;
+  url: string;
+  source: string;
+  category: string;
+  publishedAt?: string | null;
+};
+
+export type NewsCache = {
+  updatedAt: string | null;
+  feeds: Array<{ id: string; title: string; category: string; url: string }>;
+  items: NewsFeedItem[];
+  errors?: string[];
+};
+
 declare global {
   interface Window {
     nexus?: {
@@ -78,6 +95,8 @@ declare global {
       clearAiMemory: () => Promise<AiMemory>;
       loadNotes: () => Promise<NexusNote[]>;
       saveNotes: (notes: NexusNote[]) => Promise<NexusNote[]>;
+      loadNews: () => Promise<NewsCache>;
+      refreshNews: (items: LibraryItem[]) => Promise<NewsCache>;
       getSystemSnapshot: () => Promise<SystemSnapshot>;
       exportLocalReport: () => Promise<NativeResult>;
       loadUsageStats: () => Promise<UsageStats>;

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("nexus", {
   clearAiMemory: () => ipcRenderer.invoke("ai:clearMemory"),
   loadNotes: () => ipcRenderer.invoke("notes:load"),
   saveNotes: (notes) => ipcRenderer.invoke("notes:save", notes),
+  loadNews: () => ipcRenderer.invoke("news:load"),
+  refreshNews: (items) => ipcRenderer.invoke("news:refresh", items),
   getSystemSnapshot: () => ipcRenderer.invoke("system:snapshot"),
   exportLocalReport: () => ipcRenderer.invoke("system:exportReport"),
   loadUsageStats: () => ipcRenderer.invoke("usage:load"),

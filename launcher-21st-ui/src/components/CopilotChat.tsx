@@ -153,6 +153,7 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [memoryCount, setMemoryCount] = useState(0);
+  const [pendingLaunch, setPendingLaunch] = useState<LibraryItem | null>(null);
   const endOfMessagesRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -194,6 +195,44 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
     setIsThinking(true);
 
     try {
+      if (pendingLaunch) {
+        const normalizedConfirmation = normalizeText(text);
+        const confirmed = /\b(si|sii|claro|dale|abre|abrir|ejecuta|ok|confirmo|hazlo|yes)\b/.test(normalizedConfirmation);
+        const denied = /\b(no|cancel|cancela|espera|mejor no)\b/.test(normalizedConfirmation);
+        if (confirmed) {
+          const launchItem = pendingLaunch;
+          setPendingLaunch(null);
+          onSelectItem(launchItem.id);
+          const result = await window.nexus?.openPath?.(launchItem.realPath || launchItem.location, {
+            itemId: launchItem.id,
+            name: launchItem.name,
+          });
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: result?.ok
+                ? `Listo, abri ${launchItem.name}.`
+                : `Intente abrir ${launchItem.name}, pero fallo: ${result?.message ?? "la ruta no respondio"}.`,
+            },
+          ]);
+          return;
+        }
+        if (denied) {
+          setPendingLaunch(null);
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: `Cancelado. No abri ${pendingLaunch.name}.`,
+            },
+          ]);
+          return;
+        }
+      }
+
       const openTarget = getOpenTarget(text, items);
       if (openTarget) {
         const launchItem = findLaunchItem(items, openTarget);
@@ -220,18 +259,13 @@ export function CopilotChat({ items, open = false, onOpenChange, onSelectItem, m
           return;
         }
         onSelectItem(launchItem.id);
-        const result = await window.nexus.openPath(launchItem.realPath || launchItem.location, {
-          itemId: launchItem.id,
-          name: launchItem.name,
-        });
+        setPendingLaunch(launchItem);
         setMessages((current) => [
           ...current,
           {
             id: crypto.randomUUID(),
             role: "assistant",
-            content: result.ok
-              ? `Listo, abri ${launchItem.name}.`
-              : `Encontre ${launchItem.name}, pero no pude abrirlo: ${result.message ?? "la ruta no respondio"}.`,
+            content: `Encontre ${launchItem.name}. Confirmame con "si" o "abrelo" y lo ejecuto. No abro programas sin confirmacion.`,
           },
         ]);
         return;

@@ -84,7 +84,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { CopilotChat } from "@/components/CopilotChat";
 import { isDesktop, loadNativeLibrary, saveNativeLibrary } from "@/lib/native";
 import { cn } from "@/lib/utils";
-import type { NexusNote, SystemSnapshot, UsageStats } from "@/types/electron";
+import type { NewsCache, NexusNote, SystemSnapshot, UsageStats } from "@/types/electron";
 
 const filters = ["Todo", "Juego", "Programa", "Proyecto", "Sistema", "Archivo"];
 const launcherAppearanceStorageKey = "nexus-launcher-appearance";
@@ -215,6 +215,8 @@ function App() {
   const [screen, setScreen] = useState<Screen>("library");
   const [launcherAppearance, setLauncherAppearance] = useState<LauncherAppearance>(defaultLauncherAppearance);
   const [notes, setNotes] = useState<NexusNote[]>([]);
+  const [newsCache, setNewsCache] = useState<NewsCache | null>(null);
+  const [newsLoading, setNewsLoading] = useState(false);
   const [systemSnapshot, setSystemSnapshot] = useState<SystemSnapshot | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats>({});
 
@@ -300,6 +302,11 @@ function App() {
       window.nexus?.loadUsageStats().then(setUsageStats).catch(() => {});
     }, 30000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!window.nexus?.loadNews) return;
+    window.nexus.loadNews().then(setNewsCache).catch(() => setNewsCache(null));
   }, []);
 
   const filteredItems = useMemo(() => {
@@ -552,6 +559,21 @@ function App() {
     setNotice(result.ok ? `Reporte exportado: ${result.path}` : result.message ?? "No se exporto el reporte");
   }
 
+  async function refreshNews() {
+    if (!window.nexus?.refreshNews) {
+      setNotice("Noticias reales disponibles en la app de escritorio");
+      return;
+    }
+    setNewsLoading(true);
+    try {
+      const cache = await window.nexus.refreshNews(items);
+      setNewsCache(cache);
+      setNotice(cache.items.length ? `${cache.items.length} noticias actualizadas` : "No pude cargar noticias nuevas");
+    } finally {
+      setNewsLoading(false);
+    }
+  }
+
   if (screen === "cleanup") {
     return (
       <TooltipProvider>
@@ -655,7 +677,7 @@ function App() {
             icon={Newspaper}
             onBack={() => setScreen("library")}
           />
-          <NewsInterestPreview items={items} />
+          <NewsInterestPreview items={items} cache={newsCache} loading={newsLoading} onRefresh={refreshNews} />
         </motion.main>
       </TooltipProvider>
     );
@@ -1968,7 +1990,17 @@ function SystemAnalysis({
   );
 }
 
-function NewsInterestPreview({ items }: { items: LibraryItem[] }) {
+function NewsInterestPreview({
+  items,
+  cache,
+  loading,
+  onRefresh,
+}: {
+  items: LibraryItem[];
+  cache: NewsCache | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
   const interests = useMemo(() => {
     const hasGames = items.some((item) => item.type === "Juego");
     const hasProjects = items.some((item) => item.type === "Proyecto");
@@ -1982,7 +2014,12 @@ function NewsInterestPreview({ items }: { items: LibraryItem[] }) {
     return detected;
   }, [items]);
 
-  const newsPreview = [
+  const newsPreview = cache?.items.length ? cache.items.map((item) => ({
+    title: item.title,
+    detail: item.summary,
+    status: item.source,
+    url: item.url,
+  })) : [
     {
       title: "Actualizaciones de tus launchers y tiendas",
       detail: "RSS o fuentes oficiales para Steam, GOG, Battle.net y herramientas instaladas.",
@@ -2016,6 +2053,15 @@ function NewsInterestPreview({ items }: { items: LibraryItem[] }) {
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 La IA local no necesita subir tus conversaciones. Puede guardar intereses en AppData y usarlos para filtrar fuentes reales configuradas por el usuario.
               </p>
+              <Button className="mt-5" onClick={onRefresh} disabled={loading}>
+                <RotateCcw className={cn("mr-2 size-4", loading && "animate-spin")} />
+                {loading ? "Actualizando..." : "Actualizar fuentes"}
+              </Button>
+              {cache?.updatedAt && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Ultima actualizacion: {new Date(cache.updatedAt).toLocaleString()}
+                </p>
+              )}
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
@@ -2050,6 +2096,15 @@ function NewsInterestPreview({ items }: { items: LibraryItem[] }) {
                     <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
                       {entry.detail}
                     </p>
+                    {"url" in entry && entry.url && (
+                      <Button
+                        variant="secondary"
+                        className="mt-4"
+                        onClick={() => window.open(entry.url, "_blank", "noopener,noreferrer")}
+                      >
+                        Abrir fuente
+                      </Button>
+                    )}
                   </div>
                   <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-black/25">
                     <Newspaper className="size-5" />
@@ -2059,7 +2114,7 @@ function NewsInterestPreview({ items }: { items: LibraryItem[] }) {
             ))}
 
             <div className="rounded-3xl border border-white/10 bg-black/25 p-5 text-sm leading-6 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-              Proxima fase: conectar RSS reales, cache local, fuentes por categoria y un filtro de IA local que explique por que una noticia aparece.
+              {cache?.errors?.length ? `Algunas fuentes fallaron: ${cache.errors.slice(0, 2).join(" | ")}` : "Fuentes RSS reales con cache local en AppData. El contenido se sanitiza como texto plano antes de mostrarse."}
             </div>
           </div>
         </div>
