@@ -86,7 +86,7 @@ import { isDesktop, loadNativeLibrary, saveNativeLibrary } from "@/lib/native";
 import { cn } from "@/lib/utils";
 import type { NewsCache, NexusNote, SystemSnapshot, UsageStats } from "@/types/electron";
 
-const filters = ["Todo", "Juego", "Programa", "Proyecto", "Sistema", "Archivo"];
+const filters = ["Todo", "Juego", "Programa", "Proyecto", "Sistema"];
 const launcherAppearanceStorageKey = "nexus-launcher-appearance";
 const legacyLauncherBackgroundStorageKey = "nexus-launcher-background-preview";
 const notesStorageKey = "nexus-launcher-notes";
@@ -116,7 +116,7 @@ type LauncherAppearance = {
   savedPresets: LauncherBackground[];
 };
 
-type Screen = "library" | "copilot" | "notes" | "system" | "news" | "cleanup";
+type Screen = "library" | "copilot" | "notes" | "system" | "news" | "cleanup" | "desktop";
 
 type DuplicateGroup = {
   key: string;
@@ -683,6 +683,43 @@ function App() {
     );
   }
 
+  if (screen === "desktop") {
+    return (
+      <TooltipProvider>
+        <motion.main
+          className="relative h-screen overflow-hidden bg-black text-foreground"
+          style={{ "--nexus-glass": launcherAppearance.glass } as CSSProperties}
+          initial={{ opacity: 0, filter: "blur(8px)" }}
+          animate={{ opacity: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.32, ease: appleEase }}
+        >
+          <CopilotLauncherBackdrop background={launcherBackground} />
+          <PageHeader
+            eyebrow="Nexus desktop"
+            title="Panel de escritorio"
+            icon={AppWindow}
+            onBack={() => setScreen("library")}
+          />
+          <DesktopPanel
+            items={items}
+            notes={notes}
+            usageStats={usageStats}
+            systemSnapshot={systemSnapshot}
+            newsCache={newsCache}
+            onOpenLibrary={() => setScreen("library")}
+            onOpenCopilot={() => setScreen("copilot")}
+            onOpenSystem={() => setScreen("system")}
+            onOpenNews={() => setScreen("news")}
+            onSelectItem={(id) => {
+              setSelectedId(id);
+              setScreen("library");
+            }}
+          />
+        </motion.main>
+      </TooltipProvider>
+    );
+  }
+
   if (screen === "copilot") {
     return (
       <TooltipProvider>
@@ -737,22 +774,17 @@ function App() {
       >
         <CopilotLauncherBackdrop background={launcherBackground} />
         <div className="nexus-fluid-resize relative z-10 grid h-screen grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
-          <header className={cn("flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.055] px-4 py-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl md:px-6", isDesktop() && "app-drag")}>
-            <div className="flex min-w-0 items-center gap-3 md:gap-4">
+          <header
+            className={cn("grid items-center gap-5 border-b border-white/10 bg-white/[0.055] px-4 py-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl md:px-6", isDesktop() && "app-drag")}
+            style={{ gridTemplateColumns: "48px minmax(260px, 520px) minmax(0, 1fr)" }}
+          >
+            <div className="flex min-w-0 items-center">
               <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.075] shadow-[0_16px_48px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] md:size-11">
                 <Layers3 className="size-5 text-primary" />
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                  Nexus launcher
-                </p>
-                <h1 className="truncate text-lg font-semibold tracking-normal md:text-xl">
-                  Biblioteca local
-                </h1>
-              </div>
             </div>
 
-            <div className={cn("order-3 flex w-full items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] px-4 py-2.5 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl lg:order-none lg:w-[420px]", isDesktop() && "app-no-drag")}>
+            <div className={cn("relative z-10 mx-auto flex w-full max-w-[520px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] px-4 py-2.5 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl", isDesktop() && "app-no-drag")}>
               <Search className="size-4" />
               <input
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -765,7 +797,11 @@ function App() {
               </kbd>
             </div>
 
-            <div className={cn("flex max-w-full items-center gap-2 overflow-x-auto", isDesktop() && "app-no-drag")}>
+            <div className={cn("relative z-20 flex max-w-full items-center justify-start gap-2 overflow-x-auto", isDesktop() && "app-no-drag")}>
+              <Button variant="secondary" className="shrink-0" onClick={() => setScreen("desktop")}>
+                <AppWindow className="mr-2 size-4" />
+                Panel
+              </Button>
               <Button variant="secondary" className="shrink-0" onClick={() => setScreen("notes")}>
                 <FileText className="mr-2 size-4" />
                 Notas
@@ -858,17 +894,9 @@ function App() {
                   </TabsList>
                   </div>
                   <div className="flex min-w-0 items-center gap-2 overflow-x-auto xl:justify-end">
-                    <Button variant="secondary" className="shrink-0" onClick={() => addFromPicker("Proyecto")}>
-                      <Folder className="mr-2 size-4" />
-                      Carpeta
-                    </Button>
                     <Button className="shrink-0" onClick={() => addFromPicker("Programa")}>
                       <Plus className="mr-2 size-4" />
-                      Programa
-                    </Button>
-                    <Button variant="secondary" className="shrink-0" onClick={() => addFromPicker("Archivo")}>
-                      <FileText className="mr-2 size-4" />
-                      Archivo
+                      Agregar
                     </Button>
                   </div>
                 </div>
@@ -1984,6 +2012,128 @@ function SystemAnalysis({
               Cargando analisis de PC...
             </div>
           )}
+        </div>
+      </ScrollArea>
+    </section>
+  );
+}
+
+function DesktopPanel({
+  items,
+  notes,
+  usageStats,
+  systemSnapshot,
+  newsCache,
+  onOpenLibrary,
+  onOpenCopilot,
+  onOpenSystem,
+  onOpenNews,
+  onSelectItem,
+}: {
+  items: LibraryItem[];
+  notes: NexusNote[];
+  usageStats: UsageStats;
+  systemSnapshot: SystemSnapshot | null;
+  newsCache: NewsCache | null;
+  onOpenLibrary: () => void;
+  onOpenCopilot: () => void;
+  onOpenSystem: () => void;
+  onOpenNews: () => void;
+  onSelectItem: (id: string) => void;
+}) {
+  const favoriteItems = items.filter((item) => item.favorite).slice(0, 6);
+  const recentUsage = Object.values(usageStats)
+    .sort((a, b) => String(b.lastEndedAt || b.lastStartedAt || "").localeCompare(String(a.lastEndedAt || a.lastStartedAt || "")))
+    .slice(0, 4);
+  const readyItems = items.filter((item) => item.status === "Listo").length;
+  const newsItems = newsCache?.items.slice(0, 3) ?? [];
+
+  return (
+    <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
+      <ScrollArea className="h-full">
+        <div className="mx-auto grid max-w-7xl gap-5 p-6">
+          <div className="grid gap-4 md:grid-cols-4">
+            <Metric label="Accesos listos" value={`${readyItems}/${items.length}`} />
+            <Metric label="Favoritos" value={String(favoriteItems.length)} />
+            <Metric label="Notas" value={String(notes.length)} />
+            <Metric label="RAM usada" value={systemSnapshot ? formatBytes(systemSnapshot.usedMemory) : "No disponible"} />
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Dock de escritorio</p>
+                  <h2 className="mt-1 text-2xl font-semibold tracking-normal">Favoritos y acciones rapidas</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={onOpenLibrary}>Biblioteca</Button>
+                  <Button variant="secondary" onClick={onOpenCopilot}>Copilot</Button>
+                  <Button variant="secondary" onClick={onOpenSystem}>PC</Button>
+                  <Button variant="secondary" onClick={onOpenNews}>Noticias</Button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {(favoriteItems.length ? favoriteItems : items.slice(0, 6)).map((item) => {
+                  const Icon = getIcon(item.icon);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onSelectItem(item.id)}
+                      className="group min-h-32 rounded-2xl border border-white/10 bg-black/25 p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-white/25 hover:bg-white/[0.075]"
+                    >
+                      <div className="mb-4 grid size-10 place-items-center rounded-xl border border-white/10 bg-white/[0.075]">
+                        <Icon className="size-5" />
+                      </div>
+                      <div className="line-clamp-1 font-semibold">{item.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{item.type} · {item.status}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid gap-5">
+              <Card className="border-white/10 bg-white/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Activity className="size-4" />
+                    Uso reciente
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {recentUsage.length ? recentUsage.map((row) => (
+                    <div key={row.itemId} className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                      <div className="font-medium">{row.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{row.sessions} sesiones · {formatUsageDuration(row.totalSeconds)}</div>
+                    </div>
+                  )) : (
+                    <p className="text-sm text-muted-foreground">Abre apps desde Nexus para crear historial real.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-white/10 bg-white/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Newspaper className="size-4" />
+                    Senales
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {newsItems.length ? newsItems.map((entry) => (
+                    <div key={entry.id} className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                      <div className="line-clamp-2 text-sm font-medium">{entry.title}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{entry.source}</div>
+                    </div>
+                  )) : (
+                    <p className="text-sm text-muted-foreground">Actualiza fuentes en Noticias para ver senales reales.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </ScrollArea>
     </section>
