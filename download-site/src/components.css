@@ -1,0 +1,37 @@
+.logo-carousel-section{display:grid;grid-template-columns:minmax(220px,360px) minmax(0,1fr);gap:2rem;align-items:center;margin:0 0 4rem;padding:1.1rem 0 3.4rem;border-bottom:1px solid var(--line)}
+.logo-copy h2{font-size:clamp(1.8rem,3vw,3.2rem)}
+.logo-carousel{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:1.45rem;background:rgba(255,255,255,.055);padding:1rem;backdrop-filter:blur(24px)}
+.logo-carousel:before,.logo-carousel:after{content:"";position:absolute;top:0;bottom:0;z-index:2;width:6rem;pointer-events:none}
+.logo-carousel:before{left:0;background:linear-gradient(90deg,#080809,transparent)}
+.logo-carousel:after{right:0;background:linear-gradient(270deg,#080809,transparent)}
+.logo-track{display:flex;width:max-content;gap:.75rem;animation:logo-scroll 28s linear infinite}
+.logo-carousel:hover .logo-track{animation-play-state:paused}
+.logo-chip{display:inline-flex;align-items:center;gap:.6rem;min-width:8.8rem;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.075);padding:.75rem 1rem;color:var(--soft);font-weight:850}
+.logo-mark{display:grid;width:1.9rem;height:1.9rem;place-items:center;border-radius:.65rem;background:rgba(255,255,255,.9);color:#080809;font-size:.78rem;font-weight:950}
+@keyframes logo-scroll{to{transform:translateX(-50%)}}
+
+.morph-section{padding:5.6rem 0}
+.morph-layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:2rem;align-items:center}
+.stack-controls{display:grid;gap:.7rem}
+.stack-controls button{display:flex;align-items:center;gap:.65rem;border:1px solid var(--line);border-radius:1rem;background:rgba(255,255,255,.055);color:var(--muted);cursor:pointer;padding:1rem;text-align:left;font-weight:850;transition:background .2s ease,color .2s ease,transform .2s ease}
+.stack-controls button:hover,.stack-controls button.active{background:rgba(255,255,255,.12);color:var(--text);transform:translateX(4px)}
+.morph-stack{position:relative;min-height:430px;perspective:1200px}
+.morph-card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;max-width:720px;min-height:360px;border:1px solid var(--line);border-radius:1.7rem;background:linear-gradient(145deg,rgba(255,255,255,.14),rgba(255,255,255,.055));padding:2rem;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 34px 120px rgba(0,0,0,.36);backdrop-filter:blur(28px);transform-origin:center}
+.morph-card:before{content:"";position:absolute;inset:1rem;border:1px solid rgba(255,255,255,.08);border-radius:1.25rem;pointer-events:none}
+.morph-card span{position:absolute;left:2rem;top:2rem;color:var(--muted);font-weight:950}
+.morph-card h3{font-size:clamp(2.2rem,5vw,4.8rem);line-height:.92;margin:0 0 1rem;max-width:640px}
+.morph-card p{max-width:520px;color:var(--soft);line-height:1.7}
+.morph-icon{position:absolute;right:2rem;top:2rem;display:grid;width:3rem;height:3rem;place-items:center;border:1px solid var(--line);border-radius:1rem;background:rgba(255,255,255,.08)}
+.morph-active-line{display:inline-flex;align-items:center;gap:.5rem;width:max-content;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.09);padding:.55rem .75rem;color:var(--text);font-size:.82rem;font-weight:850}
+
+@media (max-width:1050px){
+  .logo-carousel-section,.morph-layout{grid-template-columns:1fr}
+  .morph-stack{min-height:480px}
+}
+@media (max-width:920px){
+  .morph-card{min-height:390px;padding:1.25rem}
+  .morph-card h3{font-size:2.55rem}
+  .morph-card span{left:1.25rem;top:1.25rem}
+  .morph-icon{right:1.25rem;top:1.25rem}
+  .logo-carousel:before,.logo-carousel:after{width:2.8rem}
+}

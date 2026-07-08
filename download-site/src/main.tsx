@@ -1,8 +1,9 @@
 import { StrictMode, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AnimatePresence, motion, useScroll, useSpring, useTransform } from "framer-motion";
-import { Bot, Cpu, Download, FolderOpen, Gamepad2, GitBranch, HardDrive, Menu, Shield, Sparkles, X } from "lucide-react";
+import { Bot, Cpu, Download, FolderOpen, Gamepad2, GitBranch, HardDrive, Layers3, Menu, MonitorCog, Palette, Shield, Sparkles, X } from "lucide-react";
 import "./styles.css";
+import "./components.css";
 
 const releaseUrl = "https://github.com/Sebastian20102/launcher-/releases/latest";
 const repoUrl = "https://github.com/Sebastian20102/launcher-";
@@ -19,6 +20,15 @@ const featureCards = [
   ["Personalizacion viva", "Wallpapers, GIFs, video, glass, densidad y perfiles que cambian la sensacion completa."],
   ["Notas y limpieza", "Notas con tags, busqueda, filtros, duplicados seguros y metadata local revisable."],
   ["IA local opcional", "Preparado para LM Studio, Ollama u OpenAI con memoria por usuario."],
+];
+
+const ecosystem = ["Steam", "GOG", "Battle.net", "Epic", "VS Code", "Unreal", "LM Studio", "Ollama", "GitHub", "Windows"];
+
+const stackCards = [
+  { title: "Biblioteca real", text: "Reconoce programas, juegos, carpetas y archivos locales por usuario.", icon: Layers3 },
+  { title: "Personalizacion", text: "Fondos estaticos, GIF, video, glass y perfiles visuales sin romper rendimiento.", icon: Palette },
+  { title: "IA local", text: "Copilot con memoria local, preparado para analizar archivos y organizar la biblioteca.", icon: Bot },
+  { title: "PC awareness", text: "Base para detectar componentes, estado del sistema y rutas importantes.", icon: MonitorCog },
 ];
 
 function App() {
@@ -92,6 +102,7 @@ function App() {
         </section>
 
         <Marquee />
+        <LogoCarousel />
 
         <section id="experience" ref={containerRef} className="container-scroll-stage">
           <div className="section-heading split-heading">
@@ -117,16 +128,7 @@ function App() {
           </div>
         </section>
 
-        <section className="timeline-section">
-          <SectionTitle eyebrow="Roadmap visual" title="La alpha ya tiene una direccion clara." />
-          <div className="timeline">
-            {["Biblioteca limpia", "Notas", "Personalizacion profunda", "IA local con habilidades", "Analisis real de PC"].map((entry, index) => (
-              <motion.div key={entry} className="timeline-item" initial={{ opacity: 0.3 }} whileInView={{ opacity: 1 }} viewport={{ once: true, amount: 0.6 }}>
-                <span>{index + 1}</span><p>{entry}</p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
+        <MorphingCardStack />
 
         <section id="privacy" className="split-section">
           <SectionTitle eyebrow="Privacidad" title="El repo no trae tus programas, iconos ni memoria." />
@@ -195,6 +197,87 @@ function FloatingStat({ label, value, className }: { label: string; value: strin
 
 function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
   return <div className="section-heading"><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div>;
+}
+
+function LogoCarousel() {
+  return (
+    <section className="logo-carousel-section" aria-label="Ecosistema conectado">
+      <div className="logo-copy">
+        <p className="eyebrow">Logo Carousel</p>
+        <h2>Ecosistema conectado.</h2>
+      </div>
+      <div className="logo-carousel">
+        <div className="logo-track">
+          {[...ecosystem, ...ecosystem].map((name, index) => (
+            <span key={`${name}-${index}`} className="logo-chip">
+              <LogoMark name={name} /> {name}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LogoMark({ name }: { name: string }) {
+  const first = name.slice(0, 1);
+  return <span className="logo-mark">{first}</span>;
+}
+
+function MorphingCardStack() {
+  const [active, setActive] = useState(0);
+  const activeCard = stackCards[active];
+  const ActiveIcon = activeCard.icon;
+  return (
+    <section className="morph-section">
+      <div className="section-heading split-heading">
+        <div><p className="eyebrow">Morphing Card Stack</p><h2>El roadmap se siente como modulo vivo.</h2></div>
+        <p>Cambia de capa y mira como la tarjeta activa se expande mientras el resto queda apilado detras.</p>
+      </div>
+      <div className="morph-layout">
+        <div className="stack-controls">
+          {stackCards.map((card, index) => {
+            const Icon = card.icon;
+            return (
+              <button key={card.title} className={active === index ? "active" : ""} onClick={() => setActive(index)}>
+                <Icon size={17} /> {card.title}
+              </button>
+            );
+          })}
+        </div>
+        <div className="morph-stack" aria-live="polite">
+          {stackCards.map((card, index) => {
+            const distance = (index - active + stackCards.length) % stackCards.length;
+            const Icon = card.icon;
+            return (
+              <motion.article
+                key={card.title}
+                className={`morph-card ${index === active ? "active" : ""}`}
+                animate={{
+                  x: distance * 18,
+                  y: distance * 18,
+                  scale: index === active ? 1 : 0.94 - distance * 0.025,
+                  opacity: index === active ? 1 : Math.max(0.25, 0.72 - distance * 0.16),
+                  zIndex: stackCards.length - distance,
+                }}
+                transition={{ type: "spring", stiffness: 260, damping: 26 }}
+              >
+                <div className="morph-icon"><Icon size={24} /></div>
+                <span>0{index + 1}</span>
+                <h3>{card.title}</h3>
+                <p>{card.text}</p>
+                {index === active && (
+                  <motion.div className="morph-active-line" layoutId="morph-line">
+                    <ActiveIcon size={16} /> listo para la siguiente alpha
+                  </motion.div>
+                )}
+              </motion.article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function Marquee() {
