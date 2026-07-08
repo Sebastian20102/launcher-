@@ -1674,7 +1674,32 @@ function NotesWorkspace({
   onUpdate: (noteId: string, patch: Partial<NexusNote>) => void;
   onDelete: (noteId: string) => void;
 }) {
-  const itemById = new Map(items.map((item) => [item.id, item]));
+  const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const [noteQuery, setNoteQuery] = useState("");
+  const [noteFilter, setNoteFilter] = useState<"all" | "pinned" | "linked">("all");
+  const allTags = useMemo(() => {
+    return [...new Set(notes.flatMap((note) => note.tags ?? []))].sort((a, b) => a.localeCompare(b)).slice(0, 24);
+  }, [notes]);
+  const filteredNotes = useMemo(() => {
+    const normalizedQuery = noteQuery.trim().toLowerCase();
+    return notes.filter((note) => {
+      const linkedItem = note.linkedItemId ? itemById.get(note.linkedItemId) : null;
+      const matchesFilter =
+        noteFilter === "all" ||
+        (noteFilter === "pinned" && note.pinned) ||
+        (noteFilter === "linked" && note.linkedItemId);
+      const haystack = `${note.title} ${note.body} ${(note.tags ?? []).join(" ")} ${linkedItem?.name ?? ""}`.toLowerCase();
+      return matchesFilter && (!normalizedQuery || haystack.includes(normalizedQuery));
+    });
+  }, [itemById, noteFilter, noteQuery, notes]);
+
+  function parseTags(value: string) {
+    return value
+      .split(",")
+      .map((tag) => tag.trim().replace(/^#/, ""))
+      .filter(Boolean)
+      .slice(0, 12);
+  }
 
   return (
     <section className="relative z-10 h-[calc(100vh-72px)] overflow-hidden">
@@ -1700,10 +1725,50 @@ function NotesWorkspace({
               <Metric label="Notas" value={String(notes.length)} />
               <Metric label="Fijadas" value={String(notes.filter((note) => note.pinned).length)} />
             </div>
+            <div className="mt-5 space-y-3">
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
+                <Search className="size-4 text-muted-foreground" />
+                <input
+                  value={noteQuery}
+                  onChange={(event) => setNoteQuery(event.target.value)}
+                  placeholder="Buscar notas, tags o accesos..."
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ["all", "Todo"],
+                  ["pinned", "Fijas"],
+                  ["linked", "Con acceso"],
+                ] as const).map(([value, label]) => (
+                  <Button
+                    key={value}
+                    variant={noteFilter === value ? "default" : "secondary"}
+                    onClick={() => setNoteFilter(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              {allTags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {allTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setNoteQuery(tag)}
+                      className="rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-white/10 hover:text-white"
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4">
-            {notes.length ? notes.map((note) => {
+            {filteredNotes.length ? filteredNotes.map((note) => {
               const linkedItem = note.linkedItemId ? itemById.get(note.linkedItemId) : null;
               return (
                 <motion.article
@@ -1723,6 +1788,7 @@ function NotesWorkspace({
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span>Actualizada {new Date(note.updatedAt).toLocaleString()}</span>
                         {linkedItem && <Badge variant="secondary">{linkedItem.name}</Badge>}
+                        {(note.tags ?? []).map((tag) => <Badge key={tag} variant="secondary">#{tag}</Badge>)}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1740,6 +1806,17 @@ function NotesWorkspace({
                     placeholder="Escribe una nota, decision, pendiente o bug..."
                     className="min-h-40 w-full resize-y rounded-2xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-white outline-none placeholder:text-muted-foreground"
                   />
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+                    <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Tags
+                    </label>
+                    <input
+                      value={(note.tags ?? []).join(", ")}
+                      onChange={(event) => onUpdate(note.id, { tags: parseTags(event.target.value) })}
+                      placeholder="bug, idea, ui, launcher..."
+                      className="mt-2 w-full bg-transparent text-sm text-white outline-none placeholder:text-muted-foreground"
+                    />
+                  </div>
                 </motion.article>
               );
             }) : (

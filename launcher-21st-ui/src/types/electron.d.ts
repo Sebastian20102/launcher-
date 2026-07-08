@@ -23,6 +23,7 @@ export type NexusNote = {
   id: string;
   title: string;
   body: string;
+  tags?: string[];
   linkedItemId?: string;
   pinned?: boolean;
   createdAt: string;

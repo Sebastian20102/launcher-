@@ -180,6 +180,9 @@ async function writeNotes(notes) {
         id: String(note.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
         title: String(note.title || "Nota sin titulo").slice(0, 120),
         body: String(note.body || "").slice(0, 12000),
+        tags: Array.isArray(note.tags)
+          ? note.tags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 12)
+          : [],
         linkedItemId: note.linkedItemId ? String(note.linkedItemId) : "",
         pinned: Boolean(note.pinned),
         updatedAt: note.updatedAt || new Date().toISOString(),
